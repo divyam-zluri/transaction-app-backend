@@ -1,15 +1,17 @@
-import express, { NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import { MikroORM } from '@mikro-orm/core';
 import config from '../mikro-orm.config';
 import { Transaction } from './entities/transactions';
+import { Request, Response, NextFunction } from 'express';
 
 const app = express();
 dotenv.config();
 app.use(cors());
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
 const port = process.env.PORT || 3001;
 
@@ -75,7 +77,10 @@ async function getData(){
         const orm = await  MikroORM.init(config);
         const em = await orm.em.fork();
 
-        const data = await em.find(Transaction,{});
+        const data = await em.findOne(Transaction, 1);
+        data!.description = 'Updated value';
+
+        await em.flush();
         return data;
     }catch(err){
         console.log(err);
@@ -101,6 +106,7 @@ app.get('/', async (req, res)=>{
 
 async function add_transaction(req: Request, res: Response, next : NextFunction){
     try{
+        console.log(req.body);
         const desc = req.body.description;
         const original_Amount = req.body.originalAmount;
         const currency = req.body.currency;
@@ -126,9 +132,9 @@ async function add_transaction(req: Request, res: Response, next : NextFunction)
     }
 }
 app.post('/add-transaction', add_transaction,(req, res)=>{
-
-
-
+    res.status(201).json({
+        message: "Received the body"
+    });
 })
 
 app.listen(port, async ()=>{
