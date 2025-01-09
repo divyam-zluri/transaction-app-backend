@@ -75,11 +75,16 @@ export class TransactionController {
       const em = orm.em.fork();
 
       const transaction = await em.findOne(Transaction, id);
-      transaction!.description = req.body.description;
-      transaction!.date = req.body.date;
-      transaction!.currency = req.body.currency;
-      transaction!.originalAmount = req.body.originalAmount;
-      transaction!.amountInINR = transaction!.originalAmount * 80;
+      console.log(transaction);
+      if (req.body.description !== undefined)
+        transaction!.description = req.body.description;
+      if (req.body.date !== undefined) transaction!.date = req.body.date;
+      if (req.body.currency !== undefined)
+        transaction!.currency = req.body.currency;
+      if (req.body.originalAmount !== undefined) {
+        transaction!.originalAmount = req.body.originalAmount;
+        transaction!.amountInINR = transaction!.originalAmount * 80;
+      }
 
       em.flush();
 
@@ -98,19 +103,28 @@ export class TransactionController {
 
   public async deleteTransaction(req: Request, res: Response) {
     try {
-      const id: number = Number(req.params.id);
       const orm = await MikroORM.init(config);
       const em = orm.em.fork();
+      const id: number = Number(req.params.id);
 
-      const record = em.getReference(Transaction, id);
-      console.log(record);
-      res.status(201).json({
-        message: "Get refernce us working",
+      const transaction = await em.findOne(Transaction, id);
+      if (!transaction) {
+        res.status(401).json({
+          message: "The ID doesn't exist",
+        });
+        return;
+      }
+      await em.remove(transaction!).flush();
+
+      res.status(200).json({
+        success: true,
+        message: "Transaction deleted successfully",
+        transaction,
       });
     } catch (error: any) {
-      res.status(409).json({
+      res.status(500).json({
         success: false,
-        message: "Failed to delete transaction.",
+        message: "Failed to delete transaction",
         error: error.message,
       });
     }
