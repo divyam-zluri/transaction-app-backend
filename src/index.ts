@@ -33,15 +33,14 @@ async function testDatabaseConnection() {
     }
 }  
 
-async function sample_transaction(){
+async function sample_transaction(description: string, originalAmount : number, currency : string){
     try{
         const orm = await MikroORM.init(config);
         const transaction = new Transaction();
-        transaction.id = 1;
         transaction.date = new Date();
-        transaction.description = 'This is a sample value';
-        transaction.originalAmount = 10;
-        transaction.currency = 'USD';
+        transaction.description = description;
+        transaction.originalAmount = originalAmount;
+        transaction.currency = currency;
         transaction.amountInINR = 800;
 
         const em = orm.em.fork();
@@ -77,31 +76,19 @@ async function getData(){
         const orm = await  MikroORM.init(config);
         const em = await orm.em.fork();
 
-        const data = await em.findOne(Transaction, 1);
-        data!.description = 'Updated value';
-
+        const data = await em.find(Transaction, {});
         await em.flush();
+
         return data;
     }catch(err){
         console.log(err);
     }
 }
 app.get('/', async (req, res)=>{
-    // await add_transaction();
-    // const checked = await finder();
-    // if(checked){
-    //     res.send("FOUND!");
-    //     return;
-    // }else{
-    //     res.send("NOT FOUND");
-    //     return;
-    // }
-
     const data = await getData();
     res.status(200).json({
         data,
     });
-    // res.status(200).send('Hello World');
 });
 
 async function add_transaction(req: Request, res: Response, next : NextFunction){
