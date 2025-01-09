@@ -19,12 +19,16 @@ export class TransactionController {
       const orm = await MikroORM.init(config);
       const em = orm.em.fork();
 
-      const data = await em.find(Transaction, {});
+      const transaction = await em.find(
+        Transaction,
+        {},
+        { orderBy: { date: "asc" } }
+      );
 
       res.status(200).json({
         success: true,
         message: "Data has been fetched",
-        data,
+        transaction,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -45,7 +49,7 @@ export class TransactionController {
       transaction.description = description;
       transaction.originalAmount = originalAmount;
       transaction.currency = currency;
-      transaction.amountInINR = originalAmount*80;
+      transaction.amountInINR = originalAmount * 80;
 
       const em = orm.em.fork();
       await em.persist(transaction).flush();
@@ -64,32 +68,51 @@ export class TransactionController {
     }
   }
 
-  public async updateTransaction(req: Request, res: Response){
-    try{
-        const id : number = Number(req.params.id);
-        console.log(id);
-        const orm = await MikroORM.init(config);
-        const em = orm.em.fork();
+  public async updateTransaction(req: Request, res: Response) {
+    try {
+      const id: number = Number(req.params.id);
+      const orm = await MikroORM.init(config);
+      const em = orm.em.fork();
 
-        const record = await em.findOne(Transaction,id);
-        record!.description = req.body.description;
-        record!.date = req.body.date;
-        record!.currency = req.body.currency;
-        record!.originalAmount = req.body.originalAmount;
-        record!.amountInINR = record!.originalAmount*80;
+      const transaction = await em.findOne(Transaction, id);
+      transaction!.description = req.body.description;
+      transaction!.date = req.body.date;
+      transaction!.currency = req.body.currency;
+      transaction!.originalAmount = req.body.originalAmount;
+      transaction!.amountInINR = transaction!.originalAmount * 80;
 
-        em.flush();
+      em.flush();
 
-        res.status(201).json({
-            message: `Transaction ${id} has been updated`,
-            record
-        });
-    }catch(error: any){
-        res.status(409).json({
-            success: false,
-            message: "Failed to update transaction.",
-            error: error.message,
-        });
+      res.status(201).json({
+        message: `Transaction ${id} has been updated`,
+        transaction,
+      });
+    } catch (error: any) {
+      res.status(409).json({
+        success: false,
+        message: "Failed to update transaction.",
+        error: error.message,
+      });
+    }
+  }
+
+  public async deleteTransaction(req: Request, res: Response) {
+    try {
+      const id: number = Number(req.params.id);
+      const orm = await MikroORM.init(config);
+      const em = orm.em.fork();
+
+      const record = em.getReference(Transaction, id);
+      console.log(record);
+      res.status(201).json({
+        message: "Get refernce us working",
+      });
+    } catch (error: any) {
+      res.status(409).json({
+        success: false,
+        message: "Failed to delete transaction.",
+        error: error.message,
+      });
     }
   }
 }
