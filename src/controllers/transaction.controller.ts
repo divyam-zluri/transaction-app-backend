@@ -23,6 +23,7 @@ export class TransactionController {
 
       res.status(200).json({
         success: true,
+        message: "Data has been fetched",
         data,
       });
     } catch (error: any) {
@@ -51,14 +52,44 @@ export class TransactionController {
       orm.close();
 
       res.status(201).json({
+        message: "New Transaction added",
         transaction,
       });
     } catch (error: any) {
       res.status(400).json({
         success: false,
-        message: "Failed to add transactions.",
+        message: "Failed to add transaction.",
         error: error.message,
       });
+    }
+  }
+
+  public async updateTransaction(req: Request, res: Response){
+    try{
+        const id : number = Number(req.params.id);
+        console.log(id);
+        const orm = await MikroORM.init(config);
+        const em = orm.em.fork();
+
+        const record = await em.findOne(Transaction,id);
+        record!.description = req.body.description;
+        record!.date = req.body.date;
+        record!.currency = req.body.currency;
+        record!.originalAmount = req.body.originalAmount;
+        record!.amountInINR = record!.originalAmount*80;
+
+        em.flush();
+
+        res.status(201).json({
+            message: `Transaction ${id} has been updated`,
+            record
+        });
+    }catch(error: any){
+        res.status(409).json({
+            success: false,
+            message: "Failed to update transaction.",
+            error: error.message,
+        });
     }
   }
 }

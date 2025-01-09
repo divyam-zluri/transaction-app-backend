@@ -6,7 +6,7 @@ const transactionController = new TransactionController();
 
 router.get('/', transactionController.getData);
 router.post('/add-transaction', transactionController.addTransaction);
-// router.put('/update-transaction/:id', updateTransaction);
+router.put('/update-transaction/:id', transactionController.updateTransaction);
 // router.put('/delete-transaction/:id', deleteTransaction);
 
 export default router;
