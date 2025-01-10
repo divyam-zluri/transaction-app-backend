@@ -15,6 +15,6 @@ router.delete(
   "/delete-transaction/:id",
   transactionController.deleteTransaction
 );
-router.get('/uplaodCSV',upload.single('file'), parserController.parser.bind(parserController));
+router.post('/uplaodCSV',upload.single('file'), parserController.parser.bind(parserController));
 
 export default router;

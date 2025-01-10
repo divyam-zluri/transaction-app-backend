@@ -8,7 +8,7 @@
       "columns": {
         "id": {
           "name": "id",
-          "type": "serial",
+          "type": "int",
           "unsigned": false,
           "autoincrement": true,
           "primary": true,
@@ -27,12 +27,12 @@
         },
         "description": {
           "name": "description",
-          "type": "varchar(255)",
+          "type": "varchar(500)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "length": 255,
+          "length": 500,
           "mappedType": "string"
         },
         "original_amount": {
