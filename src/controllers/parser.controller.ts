@@ -10,8 +10,37 @@ interface dataTypes{
     Amount: number,
     Currency: string
 }
-  
+
+// Map of currency conversion rates to INR
+const currencyConversionRates: Map<string, number> = new Map([
+    ["INR", 1],        // Indian Rupee
+    ["USD", 86.170],   // US Dollar
+    ["EUR", 88.300],   // Euro
+    ["GBP", 105.290],  // British Pound
+    ["AUD", 53.218],   // Australian Dollar
+    ["CAD", 59.727],   // Canadian Dollar
+    ["CHF", 94.187],   // Swiss Franc
+    ["JPY", 0.543],    // Japanese Yen
+    ["CNY", 11.713],   // Chinese Yuan Renminbi
+    ["MYR", 19.074],   // Malaysian Ringgit
+    ["ZAR", 4.541],    // South African Rand
+    ["NZD", 48.042],   // New Zealand Dollar
+    ["RUB", 0.832],    // Russian Ruble
+    ["BRL", 14.061],   // Brazilian Real
+    ["MXN", 4.202],    // Mexican Peso
+    ["THB", 2.476],    // Thai Baht
+    ["SGD", 62.707],   // Singapore Dollar
+    ["AED", 23.410],   // UAE Dirham
+    ["SAR", 22.899],   // Saudi Riyal
+    ["KWD", 278.493],  // Kuwaiti Dinar
+    ["BHD", 221.243],  // Bahraini Dinar
+    ["OMR", 216.515]   // Omani Rial
+]);
+
 export class ParserController{
+    private getConversionRate(currencyCode: string): number | undefined {
+        return currencyConversionRates.get(currencyCode);
+    }
     public async parser(req: Request, res: Response){
         try{
             const file = req.file;
@@ -46,12 +75,17 @@ export class ParserController{
                     const batch = parsed.data.slice(i, i + batchSize);
                     const transactions = batch.map(data => {
                         try {
+                            if(data.Currency && !this.getConversionRate(data.Currency)){
+                                console.error('Invalid currency code:', data.Currency);
+                                return null;  // skip invalid records
+                            }
+
                             const transaction = new Transaction();
                             transaction.date = formatDate(data.Date);  // format the date properly
                             transaction.description = data.Description;
                             transaction.originalAmount = data.Amount;
                             transaction.currency = data.Currency;
-                            transaction.amountInINR = data.Amount * 80;
+                            transaction.amountInINR = data.Amount * this.getConversionRate(data.Currency)!;  // convert to INR
                             return transaction;
                         } catch (error) {
                             console.error('Error processing row', data, error);
