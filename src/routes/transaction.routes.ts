@@ -3,21 +3,22 @@ import { TransactionController } from "../controllers/transaction.controller";
 import { ParserController } from "../controllers/parser.controller";
 import { idValidation } from "../middlewares/idValidation.middleware";
 import { dataValidation } from "../middlewares/dataValidation.middleware";
-import multer from 'multer';
-const router = express.Router();
+import { updateValidation } from "../middlewares/updateValidation.middleware";
+import { fileUploadService } from "../services/fileUpload.service";
+import { fileUpload } from "../middlewares/fileUpload.middleware";
 
-const upload = multer({storage: multer.memoryStorage()});
+const router = express.Router();
 const transactionController = new TransactionController();
 const parserController = new ParserController();
 
 router.get("/",transactionController.getData);
 router.post("/add-transaction", dataValidation, transactionController.addTransaction);
-router.put("/update-transaction/:id", idValidation, transactionController.updateTransaction);
+router.put("/update-transaction/:id", idValidation, updateValidation, transactionController.updateTransaction);
 router.delete(
   "/delete-transaction/:id",
   idValidation,
   transactionController.deleteTransaction
 );
-router.post('/uplaodCSV',upload.single('file'), parserController.parser.bind(parserController));
+router.post('/uplaodCSV',fileUploadService.uploadCSV().single('file'), fileUpload, parserController.parser.bind(parserController));
 
 export default router;
