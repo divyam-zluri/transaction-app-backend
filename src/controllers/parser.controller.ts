@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { MikroORM } from "@mikro-orm/postgresql";
 import config from "../../mikro-orm.config";
 import { Transaction } from "../entities/transactions";
-import { getConversionRate } from "../services/getConversion.service";
+import { currencyConversionRates } from "../globals/currencyConversionRates";
 
 interface dataTypes {
   Date: string;
@@ -13,6 +13,9 @@ interface dataTypes {
 }
 
 export class ParserController {
+  private getConversionRate(currencyCode: string): number | undefined {
+    return currencyConversionRates.get(currencyCode);
+  }
   public async parser(req: Request, res: Response) {
     try {
       const file = req.file;
@@ -76,7 +79,7 @@ export class ParserController {
               continue; // Skip invalid records
             }
 
-            if (!getConversionRate(data.Currency)) {
+            if (!this.getConversionRate(data.Currency)) {
               console.error("Invalid currency code:", data.Currency);
               continue; // Skip records with invalid currency codes
             }
@@ -94,7 +97,7 @@ export class ParserController {
             transaction.description = description;
             transaction.originalAmount = data.Amount;
             transaction.currency = data.Currency;
-            transaction.amountInINR = data.Amount * getConversionRate(data.Currency)!; // Convert to INR
+            transaction.amountInINR = data.Amount * this.getConversionRate(data.Currency)!; // Convert to INR
 
             em.persist(transaction);
             batchCount++;

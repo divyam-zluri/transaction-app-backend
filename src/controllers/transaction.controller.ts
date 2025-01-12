@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { MikroORM } from "@mikro-orm/core";
 import config from "../../mikro-orm.config";
 import { Transaction } from "../entities/transactions";
+import { currencyConversionRates } from "../globals/currencyConversionRates";
 
 const app = express();
 dotenv.config();
@@ -49,7 +50,7 @@ export class TransactionController {
       transaction.description = description;
       transaction.originalAmount = originalAmount;
       transaction.currency = currency;
-      transaction.amountInINR = originalAmount * 80;
+      transaction.amountInINR = originalAmount * currencyConversionRates.get(currency)!;
 
       const em = orm.em.fork();
       await em.persist(transaction).flush();
@@ -79,11 +80,19 @@ export class TransactionController {
       if (req.body.description !== undefined)
         transaction!.description = req.body.description;
       if (req.body.date !== undefined) transaction!.date = req.body.date;
-      if (req.body.currency !== undefined)
+      if (req.body.currency !== undefined){
+        if(!currencyConversionRates.get(req.body.currency)){
+          res.status(400).json({
+            message: "Check your currency code",
+          });
+          return;
+        }
         transaction!.currency = req.body.currency;
+        transaction!.amountInINR = transaction!.originalAmount * currencyConversionRates.get(transaction!.currency)!;
+      }
       if (req.body.originalAmount !== undefined) {
         transaction!.originalAmount = req.body.originalAmount;
-        transaction!.amountInINR = transaction!.originalAmount * 80;
+        transaction!.amountInINR = transaction!.originalAmount * currencyConversionRates.get(transaction!.currency)!;
       }
 
       em.flush();
