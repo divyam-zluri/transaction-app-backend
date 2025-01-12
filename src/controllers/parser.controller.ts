@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { MikroORM } from "@mikro-orm/postgresql";
 import config from "../../mikro-orm.config";
 import { Transaction } from "../entities/transactions";
-import { getConversionRate } from "../services/getConversion.service"
+import { getConversionRate } from "../services/getConversion.service";
 
 interface dataTypes {
   Date: string;
@@ -37,14 +37,14 @@ export class ParserController {
 
       const formatDate = (dateString: string) => {
         const [day, month, year] = dateString.split("-");
-        return new Date(`${year}-${month}-${day}`); 
+        return new Date(`${year}-${month}-${day}`);
       };
 
       try {
         const orm = await MikroORM.init(config);
         const em = orm.em.fork();
 
-        // Here i am collecting Date and Description pairs 
+        // Here i am collecting Date and Description pairs
         const dateDescriptionPairs = parsed.data.map((data) => ({
           date: formatDate(data.Date),
           description: data.Description,

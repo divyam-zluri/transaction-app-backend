@@ -75,7 +75,7 @@ export class TransactionController {
       const em = orm.em.fork();
 
       const transaction = await em.findOne(Transaction, id);
-      
+
       if (req.body.description !== undefined)
         transaction!.description = req.body.description;
       if (req.body.date !== undefined) transaction!.date = req.body.date;
