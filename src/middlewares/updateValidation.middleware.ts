@@ -7,17 +7,33 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
     const orm = await MikroORM.init(config);
     const em = orm.em.fork();
 
-    const { date, description } = req.body;
-    if(!date || !description){
-        next();
-    }
-
-    const duplicate = await em.findOne(Transaction, {date, description});
-    if(duplicate){
+    const { date, description, originalAmount, currency } = req.body;
+    if ((date && typeof date !== "string") || 
+        (description && typeof description !== "string") || 
+        (originalAmount && typeof originalAmount !== "number") || 
+        (currency && typeof currency !== "string")) {
         res.status(400).json({
-            success: false, 
-            message: 'Transaction with same date and description already exists'
+        success: false,
+        message: "Invalid data type",
+        });
+        return;
+    }
+    if(originalAmount && originalAmount < 0){
+        res.status(400).json({
+            success: false,
+            message: 'Amount cannot be negative'
         })
         return;
     }
+    if(date && description){
+        const duplicate = await em.findOne(Transaction, {date, description});
+        if(duplicate && (duplicate.id !== Number(req.params.id))){
+            res.status(400).json({
+                success: false, 
+                message: 'Transaction with same date and description already exists'
+            })
+            return;
+        }
+    }
+    next();
 }

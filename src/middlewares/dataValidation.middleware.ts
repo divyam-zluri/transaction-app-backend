@@ -15,6 +15,20 @@ export async function dataValidation(req: Request, res: Response, next: NextFunc
         });
         return;
     }
+    if (typeof date !== "string" || typeof description !== "string" || typeof originalAmount !== "number" || typeof currency !== "string") {
+        res.status(400).json({
+        success: false,
+        message: "Invalid data type",
+        });
+        return;
+    }
+    if(originalAmount < 0){
+        res.status(400).json({
+            success: false,
+            message: 'Amount cannot be negative'
+        })
+        return;
+    }
 
     const duplicate = await em.findOne(Transaction, {date, description});
     if(duplicate){
