@@ -8,6 +8,7 @@ import { uploadCSV } from "../services/fileUpload.service";
 import { conversionValidation } from "../middlewares/conversionValidation.middleware";
 import { softDelCheck } from "../middlewares/softDelCheck.middleware";
 import { downloadTransactions } from "../controllers/download.controller";
+import { transactionSummaryReport } from "../controllers/report.controller";
 import multer from "multer";
 
 const upload = multer({ dest: 'uploads/' });
@@ -23,4 +24,5 @@ router.post('/uplaodCSV', uploadCSV, parserController.parser.bind(parserControll
 router.put('/soft-delete/:id', idValidation, softDelCheck, transactionController.softDeleteTransaction);
 router.put('/restore/:id', idValidation, transactionController.restoreTransaction);
 router.get('/download', downloadTransactions);
+router.get('/report', transactionSummaryReport);
 export default router;

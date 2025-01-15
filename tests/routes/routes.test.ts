@@ -9,6 +9,7 @@ import { uploadCSV } from "../../src/services/fileUpload.service";
 import { softDelCheck } from '../../src/middlewares/softDelCheck.middleware';
 import { ParserController } from "../../src/controllers/parser.controller";
 import { downloadTransactions } from '../../src/controllers/download.controller';
+import { transactionSummaryReport } from '../../src/controllers/report.controller';
 import multer from 'multer';
 
 // Mock middlewares first
@@ -32,6 +33,9 @@ jest.mock('../../src/controllers/download.controller', () => ({
     downloadTransactions: jest.fn().mockImplementation((_req, res) => res.json({ success: true }))
 }));
 
+jest.mock('../../src/controllers/report.controller', () => ({
+    transactionSummaryReport: jest.fn().mockImplementation((_req, res) => res.json({ success: true }))
+}));
 
 // Mock controller methods
 const mockController = {
@@ -82,6 +86,7 @@ describe('Transaction Routes', () => {
     router.put('/soft-delete/:id', idValidation, softDelCheck, mockController.softDeleteTransaction);
     router.put('/restore/:id', idValidation, mockController.restoreTransaction);
     router.get('/download', downloadTransactions);
+    router.get('/report', transactionSummaryReport);
     app.use('/transactions', router);
   });
   beforeEach(() => {
@@ -164,6 +169,14 @@ describe('Transaction Routes', () => {
     it('should download transactions', async () => {
       const response = await request(app).get('/transactions/download').expect(200);
       expect(downloadTransactions).toHaveBeenCalled();
+      expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('GET /transactions/report', () => {
+    it('should generate a transaction summary report', async () => {
+      const response = await request(app).get('/transactions/report').expect(200);
+      expect(transactionSummaryReport).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
     });
   });
