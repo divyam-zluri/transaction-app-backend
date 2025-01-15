@@ -8,6 +8,7 @@ import { conversionValidation } from '../../src/middlewares/conversionValidation
 import { uploadCSV } from "../../src/services/fileUpload.service";
 import { softDelCheck } from '../../src/middlewares/softDelCheck.middleware';
 import { ParserController } from "../../src/controllers/parser.controller";
+import { downloadTransactions } from '../../src/controllers/download.controller';
 import multer from 'multer';
 
 // Mock middlewares first
@@ -25,6 +26,10 @@ jest.mock('../../src/middlewares/conversionValidation.middleware', () => ({
 }));
 jest.mock('../../src/middlewares/softDelCheck.middleware', () => ({
     softDelCheck: jest.fn().mockImplementation((_req, _res, next) => next())
+}));
+
+jest.mock('../../src/controllers/download.controller', () => ({
+    downloadTransactions: jest.fn().mockImplementation((_req, res) => res.json({ success: true }))
 }));
 
 
@@ -76,6 +81,7 @@ describe('Transaction Routes', () => {
     router.post('/uploadCSV', multer({ dest: 'uploads/' }).single('file'), uploadCSV, mockParser.parser);
     router.put('/soft-delete/:id', idValidation, softDelCheck, mockController.softDeleteTransaction);
     router.put('/restore/:id', idValidation, mockController.restoreTransaction);
+    router.get('/download', downloadTransactions);
     app.use('/transactions', router);
   });
   beforeEach(() => {
@@ -150,6 +156,14 @@ describe('Transaction Routes', () => {
       const response = await request(app).put('/transactions/restore/123').expect(200);
       expect(idValidation).toHaveBeenCalled();
       expect(mockController.restoreTransaction).toHaveBeenCalled();
+      expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('GET /transactions/download', () => {
+    it('should download transactions', async () => {
+      const response = await request(app).get('/transactions/download').expect(200);
+      expect(downloadTransactions).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
     });
   });
