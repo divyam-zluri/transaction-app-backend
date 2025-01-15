@@ -22,7 +22,7 @@ export class TransactionController {
 
       const transaction = await em.find(
         Transaction,
-        {},
+        { isDeleted: false },
         { orderBy: { date: "asc" } }
       );
 
@@ -54,7 +54,7 @@ export class TransactionController {
 
       const em = orm.em.fork();
       await em.persist(transaction).flush();
-      orm.close();
+      // orm.close();
 
       res.status(201).json({
         message: "New Transaction added",
@@ -134,6 +134,66 @@ export class TransactionController {
       res.status(500).json({
         success: false,
         message: "Failed to delete transaction",
+        error: error.message,
+      });
+    }
+  }
+
+  public async softDeleteTransaction(req: Request, res: Response) {
+    try {
+      const orm = await MikroORM.init(config);
+      const em = orm.em.fork();
+      const id: number = Number(req.params.id);
+
+      const transaction = await em.findOne(Transaction, id);
+      if (!transaction) {
+        res.status(401).json({
+          message: "The ID doesn't exist",
+        });
+        return;
+      }
+      transaction!.isDeleted = true;
+      await em.flush();
+
+      res.status(200).json({
+        success: true,
+        message: "Transaction soft deleted successfully",
+        transaction,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to soft delete transaction",
+        error: error.message,
+      });
+    }
+  }
+
+  public async restoreTransaction(req: Request, res: Response) {
+    try {
+      const orm = await MikroORM.init(config);
+      const em = orm.em.fork();
+      const id: number = Number(req.params.id);
+
+      const transaction = await em.findOne(Transaction, id);
+      if (!transaction) {
+        res.status(401).json({
+          message: "The ID doesn't exist",
+        });
+        return;
+      }
+      transaction!.isDeleted = false;
+      await em.flush();
+
+      res.status(200).json({
+        success: true,
+        message: "Transaction restored successfully",
+        transaction,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to restore transaction",
         error: error.message,
       });
     }

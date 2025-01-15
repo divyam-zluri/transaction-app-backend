@@ -4,6 +4,7 @@ import { MikroORM } from "@mikro-orm/postgresql";
 import config from "../../mikro-orm.config";
 import { Transaction } from "../entities/transactions";
 import { currencyConversionRates } from "../globals/currencyConversionRates";
+import fs from "fs/promises";
 
 interface dataTypes {
   Date: string;
@@ -12,11 +13,26 @@ interface dataTypes {
   Currency: string;
 }
 
+let warnings: string[] = [];
+
 export class ParserController {
   private getConversionRate(currencyCode: string): number | undefined {
     return currencyConversionRates.get(currencyCode);
   }
-  public async parser(req: Request, res: Response) {
+
+  private formatDate(dateString: string): Date | null {
+    if (typeof dateString !== 'string') {
+      return null;
+    }
+    const [day, month, year] = dateString.split("-");
+    if (!day || !month || !year) {
+      return null;
+    }
+    const date = new Date(`${year}-${month}-${day}`);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  public async parser(req: Request, res: Response): Promise<void> {
     try {
       const file = req.file;
 
@@ -28,7 +44,7 @@ export class ParserController {
         return;
       }
 
-      const fileContent = file.buffer.toString("utf-8");
+      const fileContent = await fs.readFile(file.path, "utf-8");
 
       const parsed = Papa.parse<dataTypes>(fileContent, {
         delimiter: ",",
@@ -38,102 +54,98 @@ export class ParserController {
         transformHeader: (header) => header.trim(),
       });
 
-      const formatDate = (dateString: string) => {
-        const [day, month, year] = dateString.split("-");
-        return new Date(`${year}-${month}-${day}`);
-      };
+      const orm = await MikroORM.init(config);
+      const em = orm.em.fork();
 
-      try {
-        const orm = await MikroORM.init(config);
-        const em = orm.em.fork();
-
-        // Here i am collecting Date and Description pairs
-        const dateDescriptionPairs = parsed.data.map((data) => ({
-          date: formatDate(data.Date),
+      const dateDescriptionPairs = parsed.data.map((data) => {
+        const date = this.formatDate(data.Date);
+        return {
+          date,
           description: data.Description,
-        }));
+        };
+      }).filter(pair => pair.date !== null);
 
-        // Query database for existing transactions in a single batch
-        const existingTransactions = await em.find(Transaction, {
-          $or: dateDescriptionPairs,
-        });
+      const existingTransactions = await em.find(Transaction, {
+        $or: dateDescriptionPairs,
+      });
 
-        // Create a set of duplicate identifiers (date-description pairs)
-        const duplicates = new Set(
-          existingTransactions.map(
-            (transaction) =>
-              `${transaction.date.toISOString()}|${transaction.description}`
-          )
-        );
+      const existingSet = new Set(
+        existingTransactions.map(
+          (transaction) =>
+            `${transaction.date.toISOString()}|${transaction.description}`
+        )
+      );
 
-        const batchSize = 100; // Batch size for flushing
-        let batchCount = 0; // Counter for batching
+      const validTransactions = [];
+      const batchSize = 100;
 
-        for (let i = 0; i < parsed.data.length; i++) {
-          const data = parsed.data[i];
-          const transaction = new Transaction();
-
-          try {
-            if (!data.Date || !data.Description || !data.Amount || !data.Currency) {
-              console.error("Skipping invalid record:", data);
-              continue; // Skip invalid records
-            }
-
-            if (!this.getConversionRate(data.Currency)) {
-              console.error("Invalid currency code:", data.Currency);
-              continue; // Skip records with invalid currency codes
-            }
-
-            const date = formatDate(data.Date);
-            const description = data.Description;
-
-            // Check for duplicates using the pre-fetched set
-            if (duplicates.has(`${date.toISOString()}|${description}`)) {
-              console.log("Duplicate transaction found, skipping:", data);
-              continue; // Skip duplicate records
-            }
-
-            transaction.date = date; // Format the date properly
-            transaction.description = description;
-            transaction.originalAmount = data.Amount;
-            transaction.currency = data.Currency;
-            transaction.amountInINR = data.Amount * this.getConversionRate(data.Currency)!; // Convert to INR
-
-            em.persist(transaction);
-            batchCount++;
-
-            if (batchCount >= batchSize) {
-              // Flush the batch and reset the counter
-              await em.flush();
-              em.clear(); // Clear the entity manager to free memory
-              batchCount = 0;
-            }
-          } catch (error) {
-            console.error("Error processing row", data, error);
-            continue; // Skip invalid records
+      for (const data of parsed.data) {
+        try {
+          if (!data.Date || !data.Description || typeof data.Amount !== 'number' || data.Amount <= 0 || !data.Currency) {
+            warnings.push(`Invalid record: ${JSON.stringify(data)}`);
+            console.error("Skipping invalid record:", data);
+            continue;
           }
-        }
 
-        // Flush remaining transactions in the last batch
-        if (batchCount > 0) {
-          await em.flush();
-          em.clear();
-        }
+          const conversionRate = this.getConversionRate(data.Currency);
+          if (!conversionRate) {
+            warnings.push(`Invalid currency code: ${data.Currency}`);
+            console.error("Invalid currency code, skipping record:", data.Currency);
+            continue;
+          }
 
-        res.status(201).json({
-          success: true,
-          message: "Data Parsed and Inserted Successfully",
-          parsed,
-        });
-      } catch (error: any) {
-        console.error("Error inserting data:", error);
-        res.status(500).json({
-          success: false,
-          message: "There is a problem with file",
-          error: error.message,
-        });
+          const date = this.formatDate(data.Date);
+          if (!date) {
+            warnings.push(`Invalid date format: ${data.Date}`);
+            console.error("Invalid date format, skipping record:", data.Date);
+            continue;
+          }
+
+          const key = `${date.toISOString()}|${data.Description}`;
+          if (existingSet.has(key)) {
+            warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);
+            console.error("Duplicate transaction found, skipping:", data);
+            continue;
+          }
+
+          const transaction = new Transaction();
+          transaction.date = date;
+          transaction.description = data.Description;
+          transaction.originalAmount = data.Amount;
+          transaction.currency = data.Currency;
+          transaction.amountInINR = data.Amount * conversionRate;
+
+          validTransactions.push(transaction);
+
+          if (validTransactions.length >= batchSize) {
+            em.persist(validTransactions);
+            await em.flush();
+            em.clear();
+            validTransactions.length = 0; // Reset batch
+          }
+        } catch (error) {
+          warnings.push(`Error processing record: ${JSON.stringify(data)} - ${error}`);
+          console.error("Error processing record:", data, error);
+          continue;
+        }
       }
+
+      // Flush remaining transactions in the last batch
+      if (validTransactions.length > 0) {
+        em.persist(validTransactions);
+        await em.flush();
+        em.clear();
+      }
+
+      res.status(201).json({
+        success: true,
+        message: warnings.length === 0 ? "Data Parsed and Inserted Successfully" : "Some records were skipped due to errors",
+        warnings,
+        parsed,
+      });
+      warnings = [];
     } catch (error: any) {
+      console.error("Error processing file:", error);
       res.status(500).json({
         success: false,
         message: "There is a problem with file",
