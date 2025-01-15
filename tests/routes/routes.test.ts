@@ -6,6 +6,7 @@ import { updateValidation } from '../../src/middlewares/updateValidation.middlew
 import { idValidation } from '../../src/middlewares/idValidation.middleware';
 import { conversionValidation } from '../../src/middlewares/conversionValidation.middleware';
 import { uploadCSV } from "../../src/services/fileUpload.service";
+import { softDelCheck } from '../../src/middlewares/softDelCheck.middleware';
 import { ParserController } from "../../src/controllers/parser.controller";
 import multer from 'multer';
 
@@ -22,6 +23,10 @@ jest.mock('../../src/middlewares/updateValidation.middleware', () => ({
 jest.mock('../../src/middlewares/conversionValidation.middleware', () => ({
     conversionValidation: jest.fn().mockImplementation((_req, _res, next) => next())
 }));
+jest.mock('../../src/middlewares/softDelCheck.middleware', () => ({
+    softDelCheck: jest.fn().mockImplementation((_req, _res, next) => next())
+}));
+
 
 // Mock controller methods
 const mockController = {
@@ -66,10 +71,10 @@ describe('Transaction Routes', () => {
     // Set up routes with mocked middleware and controllers
     router.get('/', mockController.getData);
     router.post('/add-transaction', dataValidation, conversionValidation, mockController.addTransaction);
-    router.put('/update-transaction/:id', idValidation, updateValidation, mockController.updateTransaction);
-    router.delete('/delete-transaction/:id', idValidation, mockController.deleteTransaction);
+    router.put('/update-transaction/:id', idValidation, softDelCheck, updateValidation, mockController.updateTransaction);
+    router.delete('/delete-transaction/:id', idValidation, softDelCheck, mockController.deleteTransaction);
     router.post('/uploadCSV', multer({ dest: 'uploads/' }).single('file'), uploadCSV, mockParser.parser);
-    router.put('/soft-delete/:id', idValidation, mockController.softDeleteTransaction);
+    router.put('/soft-delete/:id', idValidation, softDelCheck, mockController.softDeleteTransaction);
     router.put('/restore/:id', idValidation, mockController.restoreTransaction);
     app.use('/transactions', router);
   });
@@ -101,6 +106,7 @@ describe('Transaction Routes', () => {
       const mockUpdate = { amount: 200 };
       const response = await request(app).put('/transactions/update-transaction/123').send(mockUpdate).expect(200);
       expect(idValidation).toHaveBeenCalled();
+      expect(softDelCheck).toHaveBeenCalled();
       expect(updateValidation).toHaveBeenCalled();
       expect(mockController.updateTransaction).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
@@ -111,6 +117,7 @@ describe('Transaction Routes', () => {
     it('should validate and delete a transaction', async () => {
       const response = await request(app).delete('/transactions/delete-transaction/123').expect(200);
       expect(idValidation).toHaveBeenCalled();
+      expect(softDelCheck).toHaveBeenCalled
       expect(mockController.deleteTransaction).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
     });
@@ -132,6 +139,7 @@ describe('Transaction Routes', () => {
     it('should soft delete a transaction', async () => {
       const response = await request(app).put('/transactions/soft-delete/123').expect(200);
       expect(idValidation).toHaveBeenCalled();
+      expect(softDelCheck).toHaveBeenCalled();
       expect(mockController.softDeleteTransaction).toHaveBeenCalled();
       expect(response.body.success).toBe(true);
     });
