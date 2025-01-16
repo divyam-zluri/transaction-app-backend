@@ -5,7 +5,15 @@
         "src": "src/index.ts",
         "use": "@vercel/node",
         "config": {
-          "includeFiles": ["src/**/*.ts"]
+          "includeFiles": [
+            "src/**/*.ts",
+            "tsconfig.json",
+            "package.json",
+            "package-lock.json",
+            ".env",
+            "micro-orm.config.js",
+            "micro-orm.config.ts"
+          ]
         }
       }
     ],
