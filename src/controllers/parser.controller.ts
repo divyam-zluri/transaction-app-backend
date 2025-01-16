@@ -55,6 +55,14 @@ export class ParserController {
         transformHeader: (header) => header.trim(),
       });
 
+      if (parsed.data.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "CSV file is empty",
+        });
+        return;
+      }
+
       const orm = await MikroORM.init(config);
       const em = orm.em.fork();
 
@@ -140,7 +148,7 @@ export class ParserController {
 
       res.status(201).json({
         success: true,
-        message: warnings.length === 0 ? parsed.data.length==0 ? "No Data was Parsed Check your file" : "Data Parsed and Inserted Successfully" : "Some records were skipped due to errors",
+        message: warnings.length === 0 ? "Data Parsed and Inserted Successfully" : "Some records were skipped due to errors",
         warnings,
         parsed,
       });
