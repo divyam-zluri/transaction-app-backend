@@ -35,7 +35,7 @@ export class ParserController {
   public async parser(req: Request, res: Response): Promise<void> {
     try {
       const file = req.file;
-
+      const seenEntries = new Set<string>();
       if (!file) {
         res.status(401).json({
           success: false,
@@ -86,7 +86,6 @@ export class ParserController {
       );
 
       const validTransactions = [];
-      const batchSize = 100;
 
       for (const data of parsed.data) {
         try {
@@ -111,11 +110,18 @@ export class ParserController {
           }
 
           const key = `${date.toISOString()}|${data.Description}`;
-          if (existingSet.has(key)) {
+          if (seenEntries.has(key)) {
             warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);
             console.error("Duplicate transaction found, skipping:", data);
             continue;
           }
+                // Check for existing transaction in the database
+          const dbKey = `${date.toISOString()}|${data.Description}`;
+          if (existingSet.has(dbKey)) {
+            warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);  
+            continue;
+          }
+          seenEntries.add(key);
 
           const transaction = new Transaction();
           transaction.date = date;
@@ -125,13 +131,6 @@ export class ParserController {
           transaction.amountInINR = data.Amount * conversionRate;
 
           validTransactions.push(transaction);
-
-          if (validTransactions.length >= batchSize) {
-            em.persist(validTransactions);
-            await em.flush();
-            em.clear();
-            validTransactions.length = 0; // Reset batch
-          }
         } catch (error) {
           warnings.push(`Error processing record: ${JSON.stringify(data)} - ${error}`);
           console.error("Error processing record:", data, error);
@@ -141,9 +140,7 @@ export class ParserController {
 
       // Flush remaining transactions in the last batch
       if (validTransactions.length > 0) {
-        em.persist(validTransactions);
-        await em.flush();
-        em.clear();
+        await em.persistAndFlush(validTransactions);
       }
 
       res.status(201).json({
