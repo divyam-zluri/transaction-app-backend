@@ -44,7 +44,8 @@ export class ParserController {
         return;
       }
 
-      const fileContent = await fs.readFile(file.path, "utf-8");
+      // const fileContent = await fs.readFile(file.path, "utf-8");
+      const fileContent = req.file!.buffer.toString('utf-8');
 
       const parsed = Papa.parse<dataTypes>(fileContent, {
         delimiter: ",",

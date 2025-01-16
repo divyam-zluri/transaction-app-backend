@@ -3,8 +3,8 @@ import { Request, Response, NextFunction } from "express";
 
 export function uploadCSV(req: Request, res: Response, next: NextFunction) {
   const upload = multer({
-    dest: 'uploads/',
-    // storage: multer.memoryStorage(),
+    // dest: 'uploads/',
+    storage: multer.memoryStorage(),
     limits: { fileSize: 1 * 1024 * 1024 }, // 1MB file size limit
     fileFilter: (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
       const allowedExtensions = /csv$/;  // Check for CSV file extension
