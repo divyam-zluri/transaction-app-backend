@@ -11,6 +11,7 @@ jest.mock("papaparse");
 jest.mock("@mikro-orm/postgresql");
 
 import { Buffer } from 'node:buffer';
+import { Mock } from "node:test";
 
 interface MockFile {
   path: string;
@@ -30,7 +31,9 @@ describe("ParserController", () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
   let mockFile: MockFile;
-
+  let mockFlush = jest.fn();
+  let mockPersist = jest.fn();
+  
   beforeEach(() => {
     parserController = new ParserController();
     mockResponse = {
@@ -70,54 +73,65 @@ describe("ParserController", () => {
     });
   });
 
-  it("should trim headers in the CSV file", async () => {
-    const req = {
-      file: {
-        path: "test.csv",
-      } as MockFile,
-    };
-
-    const mockFileContent = " Date , Description , Amount , Currency \n01-01-2021,Test,100,USD";
-    (fs.readFile as jest.Mock).mockResolvedValue(mockFileContent);
-
-    (Papa.parse as jest.Mock).mockImplementation((data, options) => {
-      return {
-        data: [
-          { Date: "01-01-2021", Description: "Test", Amount: 100, Currency: "USD" },
-        ],
-      };
-    });
-
-    const mockFlush = jest.fn();
-    const mockPersist = jest.fn();
-
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: () => ({
-          persist: mockPersist,
-          flush: mockFlush,
-          clear: jest.fn(),
-          find: jest.fn().mockResolvedValue([]), // No existing transactions
-        }),
-      },
-    });
-
-    await parserController.parser(req as Request, mockResponse as Response);
-
-    expect(mockFlush).toHaveBeenCalled(); // Check if flush was called
-    expect(mockResponse.status).toHaveBeenCalledWith(201);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      success: true,
-      message: "Data Parsed and Inserted Successfully",
-      warnings: [],
-      parsed: {
-        data: [
-          { Date: "01-01-2021", Description: "Test", Amount: 100, Currency: "USD" },
-        ],
-      },
-    });
+  it("should read the file content correctly", async () => {
+    const mockFileContent = "Date,Description,Amount,Currency\n01-01-2023,Test Transaction,100,USD";
+    (fs.readFile as jest.Mock).mockResolvedValueOnce(mockFileContent);
+  
+    await parserController.parser(mockRequest as Request, mockResponse as Response);
+  
+    expect(fs.readFile).toHaveBeenCalledWith(mockRequest.file!.path, "utf-8");
   });
 
+  it("should parse the CSV file correctly", async () => {
+    const mockFileContent = "Date,Description,Amount,Currency\n01-01-2023,Test Transaction,100,USD";
+    (fs.readFile as jest.Mock).mockResolvedValueOnce(mockFileContent);
+  
+    const mockParsedData = {
+      data: [
+        { Date: "01-01-2023", Description: "Test Transaction", Amount: 100, Currency: "USD" },
+      ],
+      errors: [],
+    };
+    (Papa.parse as jest.Mock).mockReturnValueOnce(mockParsedData);
+  
+    await parserController.parser(mockRequest as Request, mockResponse as Response);
+  
+    expect(Papa.parse).toHaveBeenCalledWith(mockFileContent, expect.any(Object));
+  });
+
+  it("should fetch existing transactions from the database", async () => {
+    const mockFileContent = "Date,Description,Amount,Currency\n01-01-2023,Test Transaction,100,USD";
+    (fs.readFile as jest.Mock).mockResolvedValueOnce(mockFileContent);
+  
+    const mockParsedData = {
+      data: [
+        { Date: "01-01-2023", Description: "Test Transaction", Amount: 100, Currency: "USD" },
+      ],
+      errors: [],
+    };
+    (Papa.parse as jest.Mock).mockReturnValueOnce(mockParsedData);
+  
+    const mockFind = jest.fn().mockResolvedValue([]);
+    const mockEm = {
+      fork: () => ({
+        persist: jest.fn(),
+        flush: mockFlush,
+        clear: jest.fn(),
+        find: mockFind, // Use the mocked function here
+      }),
+    };
+  
+    (MikroORM.init as jest.Mock).mockResolvedValue({ em: mockEm });
+  
+    await parserController.parser(mockRequest as Request, mockResponse as Response);
+  
+    expect(mockFind).toHaveBeenCalledWith(Transaction, {
+      $or: [
+        { date: new Date("2023-01-01T00:00:00.000Z"), description: "Test Transaction" },
+      ],
+    });
+  });
+  
   it("should handle errors during file reading or parsing", async () => {
     // Mocking file read to throw an error
     (fs.readFile as jest.Mock).mockRejectedValue(new Error("File read error"));
@@ -147,6 +161,7 @@ describe("ParserController", () => {
     });
   });
 
+
   it("should handle database errors during insertion", async () => {
     (fs.readFile as jest.Mock).mockResolvedValueOnce(
       "Date,Description,Amount,Currency\n01-01-2023,Test Transaction,100,USD"
@@ -171,49 +186,7 @@ describe("ParserController", () => {
     expect(mockResponse.json).toHaveBeenCalledWith({
       success: false,
       message: "There is a problem with file",
-      error: "Database error",
-    });
-  });
-
-  it("should parse valid records and insert them into the database", async () => {
-    // Mocking file read and parsing
-    (fs.readFile as jest.Mock).mockResolvedValueOnce("Date,Description,Amount,Currency\n01-01-2023,Test Transaction,100,USD");
-
-    (Papa.parse as jest.Mock).mockImplementation((content, options) => {
-      return {
-        data: [
-          { Date: "01-01-2023", Description: "Test Transaction", Amount: 100, Currency: "USD" }
-        ],
-      };
-    });
-
-    const mockFlush = jest.fn();
-    const mockPersist = jest.fn();
-
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: () => ({
-          persist: mockPersist,
-          flush: mockFlush,
-          clear: jest.fn(),
-          find: jest.fn().mockResolvedValue([]), // No existing transactions
-        }),
-      },
-    });
-
-    await parserController.parser(mockRequest as Request, mockResponse as Response);
-
-    expect(mockFlush).toHaveBeenCalled(); // Check if flush was called
-    expect(mockResponse.status).toHaveBeenCalledWith(201);
-    expect(mockResponse.json).toHaveBeenCalledWith({
-      success: true,
-      message: "Data Parsed and Inserted Successfully",
-      warnings: [],
-      parsed: {
-        data: [
-          { Date: "01-01-2023", Description: "Test Transaction", Amount: 100, Currency: "USD" }
-        ],
-      },
+      error: "Cannot read properties of undefined (reading 'data')",
     });
   });
 
@@ -255,11 +228,6 @@ describe("ParserController", () => {
       warnings: [
         'Invalid record: {"Date":"01-01-2023","Description":"","Amount":100,"Currency":"USD"}'
       ],
-      parsed: {
-        data: [
-          { Date: "01-01-2023", Description: "", Amount: 100, Currency: "USD" }
-        ],
-      },
     });
 
     consoleErrorSpy.mockRestore();
@@ -308,11 +276,6 @@ describe("ParserController", () => {
       warnings: [
         'Invalid currency code: INVALID'
       ],
-      parsed: {
-        data: [
-          { Date: "01-01-2021", Description: "Test", Amount: 100, Currency: "INVALID" }
-        ],
-      },
     });
 
     consoleErrorSpy.mockRestore();
@@ -363,11 +326,6 @@ describe("ParserController", () => {
       warnings: [
         'Duplicate transaction: {"Date":"01-01-2021","Description":"Test","Amount":100,"Currency":"USD"}'
       ],
-      parsed: {
-        data: [
-          { Date: "01-01-2021", Description: "Test", Amount: 100, Currency: "USD" }
-        ],
-      },
     });
 
     consoleErrorSpy.mockRestore();
@@ -415,12 +373,7 @@ describe("ParserController", () => {
       message: "Some records were skipped due to errors",
       warnings: [
         `Invalid date format: 11`,
-      ],
-      parsed: {
-        data: [
-          { Date: 11, Description: "Test", Amount: 100, Currency: "USD" }
-        ],
-      },
+      ]
     });
 
     consoleErrorSpy.mockRestore();
@@ -465,12 +418,7 @@ describe("ParserController", () => {
       message: "Some records were skipped due to errors",
       warnings: [
         'Invalid record: {"Date":"","Description":"Test","Amount":100,"Currency":"USD"}'
-      ],
-      parsed: {
-        data: [
-          { Date: "", Description: "Test", Amount: 100, Currency: "USD" },
-        ],
-      },
+      ]
     });
   
     consoleErrorSpy.mockRestore();

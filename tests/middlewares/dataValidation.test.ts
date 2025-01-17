@@ -3,13 +3,14 @@ import { MikroORM } from "@mikro-orm/core";
 import { EntityManager } from "@mikro-orm/postgresql";
 import { dataValidation } from "../../src/middlewares/dataValidation.middleware";
 import { Transaction } from "../../src/entities/transactions";
+import {parse, isValid} from "date-fns";
+import * as dateFns from "date-fns";
 
 // Mock MikroORM functions
 jest.mock("@mikro-orm/core")
 
 // Mock PostgreSqlDriver so it's not used directly in the test environment
 jest.mock("@mikro-orm/postgresql")
-
 // Mock MikroORM decorators for the Transaction entity
 jest.mock("../../src/entities/transactions", () => ({
     Transaction: jest.fn().mockImplementation(() => ({
@@ -25,18 +26,32 @@ describe("dataValidation Middleware", () => {
     let mockRequest: Partial<Request>;
     let mockResponse: Partial<Response>;
     let nextFunction: NextFunction = jest.fn();
+    let mockEm: Partial<EntityManager>;
   
     beforeEach(() => {
-      mockRequest = {};
+      mockRequest = {
+        body: {
+          date: "2023-10-10",
+          description: "Test Transaction",
+          originalAmount: 100,
+          currency: "USD",
+        },
+      };
+  
       mockResponse = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
       };
+  
+      nextFunction = jest.fn();
+  
+      mockEm = {
+        findOne: jest.fn(),
+      };
+  
       (MikroORM.init as jest.Mock).mockResolvedValue({
         em: {
-          fork: () => ({
-            findOne: jest.fn(),
-          }),
+          fork: () => mockEm,
         },
       });
     });
@@ -82,7 +97,7 @@ describe("dataValidation Middleware", () => {
     });
   
     it("should return 400 if the date value is invalid", async () => {
-      mockRequest.body = { date: "2023-13-01", description: "Test", originalAmount: 100, currency: "USD" }; // Invalid date value
+      mockRequest.body = { date: "2023-01-33", description: "Test", originalAmount: 100, currency: "USD" };
   
       await dataValidation(mockRequest as Request, mockResponse as Response, nextFunction);
   
@@ -92,6 +107,7 @@ describe("dataValidation Middleware", () => {
         message: "Invalid date value",
       });
     });
+  
   
     it("should return 400 if the amount is negative", async () => {
       mockRequest.body = { date: "2023-01-01", description: "Test", originalAmount: -100, currency: "USD" }; // Negative amount

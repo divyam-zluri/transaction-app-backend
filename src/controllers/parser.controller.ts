@@ -6,6 +6,7 @@ import { Transaction } from "../entities/transactions";
 import { currencyConversionRates } from "../globals/currencyConversionRates";
 import fs from "fs/promises";
 
+
 interface dataTypes {
   Date: string;
   Description: string;
@@ -115,10 +116,11 @@ export class ParserController {
             console.error("Duplicate transaction found, skipping:", data);
             continue;
           }
-                // Check for existing transaction in the database
+          // Check for existing transaction in the database
           const dbKey = `${date.toISOString()}|${data.Description}`;
           if (existingSet.has(dbKey)) {
             warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);  
+            console.error("Duplicate transaction found, skipping:", data);
             continue;
           }
           seenEntries.add(key);
@@ -147,7 +149,6 @@ export class ParserController {
         success: true,
         message: warnings.length === 0 ? "Data Parsed and Inserted Successfully" : "Some records were skipped due to errors",
         warnings,
-        parsed,
       });
       warnings = [];
     } catch (error: any) {
