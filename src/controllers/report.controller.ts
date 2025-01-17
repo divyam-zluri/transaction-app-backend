@@ -1,34 +1,42 @@
 import { Request, Response } from 'express';
-import { MikroORM } from '@mikro-orm/postgresql';
 import { Transaction } from '../entities/transactions';
-import config from '../../mikro-orm.config';
+import { getEntityManager } from '../utils/orm';
 
 export async function transactionSummaryReport(req: Request, res: Response) {
-  const { startDate, endDate } = req.query;
-
-  if (!startDate || !endDate) {
+  const { startYear, endYear } = req.query;
+  if (!startYear || !endYear) {
     res.status(400).json({
       success: false,
-      message: 'Please provide both startDate and endDate',
+      message: 'Please provide both startYear and endYear',
     });
     return;
   }
-
-  const orm = await MikroORM.init(config);
-  const em = orm.em.fork();
-
   try {
+    if(isNaN(Number(startYear)) || isNaN(Number(endYear)) || Number(startYear) < 0 || Number(endYear) < 0){
+      res.status(400).json({
+        success: false,
+        message: 'Please provide a valid year value',
+      });
+      return;
+    }
+    if(startYear > endYear || Number(endYear) > new Date().getFullYear()+1){
+      res.status(400).json({
+        success: false,
+        message: `Please provide a valid year range. Year must be less than ${new Date().getFullYear()+1}`
+      });
+      return;
+    }
+    const em = await getEntityManager(); 
     const transactions = await em.find(Transaction, {
       date: {
-        $gte: new Date(startDate as string),
-        $lte: new Date(endDate as string),
+        $gte: new Date(startYear as string),
+        $lte: new Date(endYear as string),
       },
     });
-
     if (transactions.length === 0) {
       res.status(404).json({
         success: false,
-        message: 'No transactions found for the specified date range',
+        message: 'No transactions found for the specified year range',
       });
       return;
     }

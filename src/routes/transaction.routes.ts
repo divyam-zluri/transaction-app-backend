@@ -9,14 +9,13 @@ import { conversionValidation } from "../middlewares/conversionValidation.middle
 import { softDelCheck } from "../middlewares/softDelCheck.middleware";
 import { downloadTransactions } from "../controllers/download.controller";
 import { transactionSummaryReport } from "../controllers/report.controller";
-import multer from "multer";
+import { pageLimit } from "../middlewares/pageLimit.middleware";
 
-const upload = multer({ dest: 'uploads/' });
 const router = express.Router();
 const transactionController = new TransactionController();
 const parserController = new ParserController();
 
-router.get("/",transactionController.getData);
+router.get("/", pageLimit, transactionController.getData);
 router.post("/add-transaction", dataValidation, conversionValidation, transactionController.addTransaction);
 router.put("/update-transaction/:id", idValidation, softDelCheck, updateValidation, transactionController.updateTransaction);
 router.delete("/delete-transaction/:id", idValidation, softDelCheck, transactionController.deleteTransaction);

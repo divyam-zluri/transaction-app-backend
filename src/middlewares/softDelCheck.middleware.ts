@@ -1,11 +1,9 @@
 import  { Request, Response, NextFunction } from 'express';
-import { MikroORM } from '@mikro-orm/postgresql';
-import config from '../../mikro-orm.config';
 import { Transaction } from '../entities/transactions';
+import { getEntityManager } from '../utils/orm';
 
 export async function softDelCheck(req: Request, res: Response, next: NextFunction){
-    const orm = await MikroORM.init(config);
-    const em = orm.em.fork();
+    const em = await getEntityManager();
 
     const id = Number(req.params.id);
     const transaction = await em.findOne(Transaction, {id});

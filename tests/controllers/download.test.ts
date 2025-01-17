@@ -1,122 +1,86 @@
-import request from 'supertest';
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { downloadTransactions } from '../../src/controllers/download.controller';
-import { MikroORM } from '@mikro-orm/postgresql';
 import { Transaction } from '../../src/entities/transactions';
-import fs from 'fs';
+import { getEntityManager } from '../../src/utils/orm';
 import Papa from 'papaparse';
+import fs from 'fs';
 
-jest.mock('@mikro-orm/postgresql');
-jest.mock('fs');
+jest.mock('../../src/utils/orm');
 jest.mock('papaparse');
-
-const app = express();
-app.get('/api/download', downloadTransactions);
+jest.mock('fs');
 
 describe('downloadTransactions', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
   let mockEm: any;
 
   beforeEach(() => {
+    req = {};
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      download: jest.fn(),
+      send: jest.fn(), // Mock the send method
+    };
     mockEm = {
       find: jest.fn(),
     };
-
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnValue(mockEm),
-      },
-    });
-
-    (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
-    (fs.unlinkSync as jest.Mock).mockImplementation(() => {});
+    (getEntityManager as jest.Mock).mockResolvedValue(mockEm);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should simulate downloading the transactions as a CSV file', async () => {
-    const transactions = [
-      { id: 1, date: '2023-01-01', description: 'Test Transaction', originalAmount: 100, currency: 'USD', amountInINR: 7500, isDeleted: false },
+  it('should download transactions as CSV', async () => {
+    const mockTransactions = [
+      { id: 1, description: 'Test Transaction 1', amount: 100 },
+      { id: 2, description: 'Test Transaction 2', amount: 200 },
     ];
-    mockEm.find.mockResolvedValue(transactions);
-    (Papa.unparse as jest.Mock).mockReturnValue('id,date,description,originalAmount,currency,amountInINR,isDeleted\n1,2023-01-01,Test Transaction,100,USD,7500,false');
+    mockEm.find.mockResolvedValue(mockTransactions);
+    (Papa.unparse as jest.Mock).mockReturnValue('id,description,amount\n1,Test Transaction 1,100\n2,Test Transaction 2,200');
+    (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+    (fs.unlinkSync as jest.Mock).mockImplementation(() => {});
 
-    const mockDownload = jest.fn((filePath, fileName, callback) => {
-      callback(); // Simulate the callback being called immediately
-    });
+    await downloadTransactions(req as Request, res as Response);
 
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-      download: mockDownload,
-      send: jest.fn(), // Add the send method to the mock response
-    };
-
-    await downloadTransactions({} as unknown as Request, mockResponse as unknown as Response);
-
-    expect(mockDownload).toHaveBeenCalledWith('./transactions.csv', 'transactions.csv', expect.any(Function));
-    expect(fs.writeFileSync).toHaveBeenCalledWith('./transactions.csv', 'id,date,description,originalAmount,currency,amountInINR,isDeleted\n1,2023-01-01,Test Transaction,100,USD,7500,false');
-    expect(fs.unlinkSync).toHaveBeenCalledWith('./transactions.csv');
+    expect(mockEm.find).toHaveBeenCalledWith(Transaction, {});
+    expect(Papa.unparse).toHaveBeenCalledWith(mockTransactions, { header: true });
+    expect(fs.writeFileSync).toHaveBeenCalledWith('./transactions.csv', 'id,description,amount\n1,Test Transaction 1,100\n2,Test Transaction 2,200');
+    expect(res.download).toHaveBeenCalledWith('./transactions.csv', 'transactions.csv', expect.any(Function));
   });
 
-  it('should handle errors when fetching transactions', async () => {
-    mockEm.find.mockRejectedValue(new Error('Database error'));
+  it('should handle errors during transaction fetching', async () => {
+    const mockError = new Error('Database error');
+    mockEm.find.mockRejectedValue(mockError);
 
-    const response = await request(app).get('/api/download');
+    await downloadTransactions(req as Request, res as Response);
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
+    expect(mockEm.find).toHaveBeenCalledWith(Transaction, {});
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: 'Error fetching transactions',
       error: 'Database error',
     });
   });
 
-  it('should handle errors when writing the file', async () => {
-    const transactions = [
-      { id: 1, date: '2023-01-01', description: 'Test Transaction', originalAmount: 100, currency: 'USD', amountInINR: 7500, isDeleted: false },
+  it('should handle errors during file download', async () => {
+    const mockTransactions = [
+      { id: 1, description: 'Test Transaction 1', amount: 100 },
+      { id: 2, description: 'Test Transaction 2', amount: 200 },
     ];
-    mockEm.find.mockResolvedValue(transactions);
-    (Papa.unparse as jest.Mock).mockReturnValue('id,date,description,originalAmount,currency,amountInINR,isDeleted\n1,2023-01-01,Test Transaction,100,USD,7500,false');
-    (fs.writeFileSync as jest.Mock).mockImplementation(() => {
-      throw new Error('File write error');
-    });
+    mockEm.find.mockResolvedValue(mockTransactions);
+    (Papa.unparse as jest.Mock).mockReturnValue('id,description,amount\n1,Test Transaction 1,100\n2,Test Transaction 2,200');
+    (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+    (fs.unlinkSync as jest.Mock).mockImplementation(() => {});
 
-    const response = await request(app).get('/api/download');
+    await downloadTransactions(req as Request, res as Response);
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
-      success: false,
-      message: 'Error fetching transactions',
-      error: 'File write error',
-    });
-  });
+    const downloadCallback = (res.download as jest.Mock).mock.calls[0][2];
+    downloadCallback(new Error('Download error'));
 
-  it('should handle errors during the download process', async () => {
-    const transactions = [
-      { id: 1, date: '2023-01-01', description: 'Test Transaction', originalAmount: 100, currency: 'USD', amountInINR: 7500, isDeleted: false },
-    ];
-    mockEm.find.mockResolvedValue(transactions);
-    (Papa.unparse as jest.Mock).mockReturnValue('id,date,description,originalAmount,currency,amountInINR,isDeleted\n1,2023-01-01,Test Transaction,100,USD,7500,false');
-
-    const mockDownload = jest.fn((filePath, fileName, callback) => {
-      callback(new Error('Download error')); // Simulate an error during the download process
-    });
-
-    const mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-      download: mockDownload,
-      send: jest.fn(), // Add the send method to the mock response
-    };
-
-    await downloadTransactions({} as Request, mockResponse as unknown as Response);
-
-    expect(mockDownload).toHaveBeenCalledWith('./transactions.csv', 'transactions.csv', expect.any(Function));
-    expect(mockResponse.status).toHaveBeenCalledWith(500);
-    expect(mockResponse.send).toHaveBeenCalledWith('Error downloading the file');
-    expect(fs.writeFileSync).toHaveBeenCalledWith('./transactions.csv', 'id,date,description,originalAmount,currency,amountInINR,isDeleted\n1,2023-01-01,Test Transaction,100,USD,7500,false');
-    expect(fs.unlinkSync).toHaveBeenCalledWith('./transactions.csv');
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.send).toHaveBeenCalledWith('Error downloading the file');
   });
 });

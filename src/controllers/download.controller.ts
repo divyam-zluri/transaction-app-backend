@@ -1,14 +1,11 @@
 import { Request, Response } from 'express';
-import { MikroORM } from '@mikro-orm/postgresql';
 import { Transaction } from '../entities/transactions';
-import config from '../../mikro-orm.config';
 import Papa from 'papaparse';
 import fs from 'fs';
+import { getEntityManager } from '../utils/orm';
 
 export async function downloadTransactions(req: Request, res: Response) {
-  const orm = await MikroORM.init(config);
-  const em = orm.em.fork();
-
+  const em = await getEntityManager(); 
   try {
     const transactions = await em.find(Transaction, {});
 

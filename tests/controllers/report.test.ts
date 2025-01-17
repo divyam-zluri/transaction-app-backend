@@ -1,67 +1,93 @@
-import request from 'supertest';
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { transactionSummaryReport } from '../../src/controllers/report.controller';
-import { MikroORM } from '@mikro-orm/postgresql';
+import { getEntityManager } from '../../src/utils/orm';
 import { Transaction } from '../../src/entities/transactions';
 
-jest.mock('@mikro-orm/postgresql');
-
-const app = express();
-app.get('/api/transaction-summary', transactionSummaryReport);
+jest.mock('../../src/utils/orm');
 
 describe('transactionSummaryReport', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
   let mockEm: any;
 
   beforeEach(() => {
+    req = {
+      query: {},
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
     mockEm = {
       find: jest.fn(),
     };
-
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnValue(mockEm),
-      },
-    });
+    (getEntityManager as jest.Mock).mockResolvedValue(mockEm);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should return 400 if startDate or endDate is missing', async () => {
-    const response = await request(app).get('/api/transaction-summary?startDate=2023-01-01');
+  it('should return 400 if startYear or endYear is not provided', async () => {
+    await transactionSummaryReport(req as Request, res as Response);
 
-    expect(response.status).toBe(400);
-    expect(response.body).toEqual({
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'Please provide both startDate and endDate',
+      message: 'Please provide both startYear and endYear',
     });
   });
 
-  it('should return 404 if no transactions are found for the specified date range', async () => {
+  it('should return 400 if startYear or endYear is invalid', async () => {
+    req.query = { startYear: 'invalid', endYear: '2023' };
+
+    await transactionSummaryReport(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Please provide a valid year value',
+    });
+  });
+
+  it('should return 400 if startYear is greater than endYear or endYear is in the future', async () => {
+    req.query = { startYear: '2025', endYear: '2023' };
+
+    await transactionSummaryReport(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: `Please provide a valid year range. Year must be less than ${new Date().getFullYear() + 1}`,
+    });
+  });
+
+  it('should return 404 if no transactions are found', async () => {
+    req.query = { startYear: '2020', endYear: '2021' };
     mockEm.find.mockResolvedValue([]);
 
-    const response = await request(app).get('/api/transaction-summary?startDate=2023-01-01&endDate=2023-01-31');
+    await transactionSummaryReport(req as Request, res as Response);
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
-      message: 'No transactions found for the specified date range',
+      message: 'No transactions found for the specified year range',
     });
   });
 
-  it('should return a summary report for the specified date range', async () => {
+  it('should return 200 with transaction summary report', async () => {
+    req.query = { startYear: '2020', endYear: '2021' };
     const transactions = [
-      { id: 1, date: new Date('2023-01-01'), description: 'Test Transaction 1', originalAmount: 100, currency: 'USD', amountInINR: 7500, isDeleted: false },
-      { id: 2, date: new Date('2023-01-02'), description: 'Test Transaction 2', originalAmount: 200, currency: 'USD', amountInINR: 15000, isDeleted: false },
-      { id: 3, date: new Date('2023-01-03'), description: 'Test Transaction 3', originalAmount: 300, currency: 'EUR', amountInINR: 22500, isDeleted: false },
+      { originalAmount: 100, currency: 'USD' },
+      { originalAmount: 200, currency: 'USD' },
+      { originalAmount: 300, currency: 'EUR' },
     ];
     mockEm.find.mockResolvedValue(transactions);
 
-    const response = await request(app).get('/api/transaction-summary?startDate=2023-01-01&endDate=2023-01-31');
+    await transactionSummaryReport(req as Request, res as Response);
 
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual({
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
       success: true,
       data: {
         totalTransactions: 3,
@@ -75,16 +101,18 @@ describe('transactionSummaryReport', () => {
     });
   });
 
-  it('should handle errors when generating the summary report', async () => {
-    mockEm.find.mockRejectedValue(new Error('Database error'));
+  it('should return 500 if there is an error generating the report', async () => {
+    req.query = { startYear: '2020', endYear: '2021' };
+    const error = new Error('Database error');
+    mockEm.find.mockRejectedValue(error);
 
-    const response = await request(app).get('/api/transaction-summary?startDate=2023-01-01&endDate=2023-01-31');
+    await transactionSummaryReport(req as Request, res as Response);
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: 'Error generating transaction summary report',
-      error: 'Database error',
+      error: error.message,
     });
   });
 });

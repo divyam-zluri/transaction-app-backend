@@ -1,35 +1,19 @@
-import express from "express";
-import cors from "cors";
-import { Request, Response, NextFunction } from "express";
-import bodyParser from "body-parser";
-import dotenv from "dotenv";
-import { MikroORM } from "@mikro-orm/core";
-import config from "../../mikro-orm.config";
-import { Transaction } from "../entities/transactions";
-import { currencyConversionRates } from "../globals/currencyConversionRates";
-
-const app = express();
-dotenv.config();
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+import { Request, Response } from "express";
+import transactionService from "../services/transaction.service";
 
 export class TransactionController {
   public async getData(req: Request, res: Response) {
     try {
-      const orm = await MikroORM.init(config);
-      const em = orm.em.fork();
-
-      const transaction = await em.find(
-        Transaction,
-        { isDeleted: false },
-        { orderBy: { date: "asc" } }
+      const { page, limit } = req.query;
+      // console.log(page, limit);
+      const data = await transactionService.getTransactions(
+        Number(page) || 1,
+        Number(limit) || 10
       );
-
       res.status(200).json({
         success: true,
         message: "Data has been fetched",
-        transaction,
+        ...data,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -42,21 +26,9 @@ export class TransactionController {
 
   public async addTransaction(req: Request, res: Response) {
     try {
-      const { date, description, originalAmount, currency } = req.body;
-      const orm = await MikroORM.init(config);
-
-      const transaction = new Transaction();
-      transaction.date = date;
-      transaction.description = description;
-      transaction.originalAmount = originalAmount;
-      transaction.currency = currency;
-      transaction.amountInINR = originalAmount * currencyConversionRates.get(currency)!;
-
-      const em = orm.em.fork();
-      await em.persist(transaction).flush();
-      // orm.close();
-
+      const transaction = await transactionService.createTransaction(req.body);
       res.status(201).json({
+        success: true,
         message: "New Transaction added",
         transaction,
       });
@@ -71,35 +43,15 @@ export class TransactionController {
 
   public async updateTransaction(req: Request, res: Response) {
     try {
-      const id: number = Number(req.params.id);
-      const orm = await MikroORM.init(config);
-      const em = orm.em.fork();
-
-      const transaction = await em.findOne(Transaction, id);
-
-      if (req.body.description !== undefined)
-        transaction!.description = req.body.description;
-      if (req.body.date !== undefined) transaction!.date = req.body.date;
-      if (req.body.currency !== undefined){
-        if(!currencyConversionRates.get(req.body.currency)){
-          res.status(400).json({
-            message: "Check your currency code",
-          });
-          return;
-        }
-        transaction!.currency = req.body.currency;
-        transaction!.amountInINR = transaction!.originalAmount * currencyConversionRates.get(transaction!.currency)!;
-      }
-      if (req.body.originalAmount !== undefined) {
-        transaction!.originalAmount = req.body.originalAmount;
-        transaction!.amountInINR = transaction!.originalAmount * currencyConversionRates.get(transaction!.currency)!;
-      }
-
-      em.flush();
-
+      const id = Number(req.params.id);
+      const updatedTransaction = await transactionService.updateTransaction(
+        id,
+        req.body
+      );
       res.status(201).json({
+        success: true,
         message: `Transaction ${id} has been updated`,
-        transaction,
+        transaction: updatedTransaction,
       });
     } catch (error: any) {
       res.status(409).json({
@@ -112,19 +64,8 @@ export class TransactionController {
 
   public async deleteTransaction(req: Request, res: Response) {
     try {
-      const orm = await MikroORM.init(config);
-      const em = orm.em.fork();
-      const id: number = Number(req.params.id);
-
-      const transaction = await em.findOne(Transaction, id);
-      if (!transaction) {
-        res.status(401).json({
-          message: "The ID doesn't exist",
-        });
-        return;
-      }
-      await em.remove(transaction!).flush();
-
+      const id = Number(req.params.id);
+      const transaction = await transactionService.deleteTransaction(id);
       res.status(200).json({
         success: true,
         message: "Transaction deleted successfully",
@@ -141,20 +82,8 @@ export class TransactionController {
 
   public async softDeleteTransaction(req: Request, res: Response) {
     try {
-      const orm = await MikroORM.init(config);
-      const em = orm.em.fork();
-      const id: number = Number(req.params.id);
-
-      const transaction = await em.findOne(Transaction, id);
-      if (!transaction) {
-        res.status(401).json({
-          message: "The ID doesn't exist",
-        });
-        return;
-      }
-      transaction!.isDeleted = true;
-      await em.flush();
-
+      const id = Number(req.params.id);
+      const transaction = await transactionService.softDeleteTransaction(id);
       res.status(200).json({
         success: true,
         message: "Transaction soft deleted successfully",
@@ -171,20 +100,8 @@ export class TransactionController {
 
   public async restoreTransaction(req: Request, res: Response) {
     try {
-      const orm = await MikroORM.init(config);
-      const em = orm.em.fork();
-      const id: number = Number(req.params.id);
-
-      const transaction = await em.findOne(Transaction, id);
-      if (!transaction) {
-        res.status(401).json({
-          message: "The ID doesn't exist",
-        });
-        return;
-      }
-      transaction!.isDeleted = false;
-      await em.flush();
-
+      const id = Number(req.params.id);
+      const transaction = await transactionService.restoreTransaction(id);
       res.status(200).json({
         success: true,
         message: "Transaction restored successfully",

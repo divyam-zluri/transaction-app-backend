@@ -1,86 +1,64 @@
 import { Request, Response, NextFunction } from 'express';
 import { softDelCheck } from '../../src/middlewares/softDelCheck.middleware';
-import { MikroORM } from '@mikro-orm/postgresql';
+import { getEntityManager } from '../../src/utils/orm';
 import { Transaction } from '../../src/entities/transactions';
 
-jest.mock('@mikro-orm/postgresql');
+jest.mock('../../src/utils/orm');
 
-describe('softDelCheck Middleware', () => {
-  let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
-  let nextFunction: NextFunction = jest.fn();
+describe('softDelCheck middleware', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: NextFunction;
+  let mockEm: any;
 
   beforeEach(() => {
-    mockRequest = {};
-    mockResponse = {
+    req = {
+      params: { id: '1' },
+    };
+    res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnThis(),
-        findOne: jest.fn(),
-      },
-    });
+    next = jest.fn();
+    mockEm = {
+      findOne: jest.fn(),
+    };
+    (getEntityManager as jest.Mock).mockResolvedValue(mockEm);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('should return 404 if the transaction does not exist', async () => {
-    mockRequest.params = { id: '1' };
-    const mockFindOne = jest.fn().mockResolvedValue(null);
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnValue({
-          findOne: mockFindOne,
-        }),
-      },
-    });
+  it('should return 404 if transaction does not exist', async () => {
+    mockEm.findOne.mockResolvedValue(null);
 
-    await softDelCheck(mockRequest as Request, mockResponse as Response, nextFunction);
+    await softDelCheck(req as Request, res as Response, next);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(404);
-    expect(mockResponse.json).toHaveBeenCalledWith({
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: 'The id does not exist',
     });
   });
 
-  it('should return 404 if the transaction is soft deleted', async () => {
-    mockRequest.params = { id: '1' };
-    const mockFindOne = jest.fn().mockResolvedValue({ id: 1, isDeleted: true });
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnValue({
-          findOne: mockFindOne,
-        }),
-      },
-    });
+  it('should return 404 if transaction is soft deleted', async () => {
+    mockEm.findOne.mockResolvedValue({ isDeleted: true });
 
-    await softDelCheck(mockRequest as Request, mockResponse as Response, nextFunction);
+    await softDelCheck(req as Request, res as Response, next);
 
-    expect(mockResponse.status).toHaveBeenCalledWith(404);
-    expect(mockResponse.json).toHaveBeenCalledWith({
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
       success: false,
       message: 'Transaction not found',
     });
   });
 
-  it('should call next if the transaction exists and is not soft deleted', async () => {
-    mockRequest.params = { id: '1' };
-    const mockFindOne = jest.fn().mockResolvedValue({ id: 1, isDeleted: false });
-    (MikroORM.init as jest.Mock).mockResolvedValue({
-      em: {
-        fork: jest.fn().mockReturnValue({
-          findOne: mockFindOne,
-        }),
-      },
-    });
+  it('should call next if transaction exists and is not soft deleted', async () => {
+    mockEm.findOne.mockResolvedValue({ isDeleted: false });
 
-    await softDelCheck(mockRequest as Request, mockResponse as Response, nextFunction);
+    await softDelCheck(req as Request, res as Response, next);
 
-    expect(nextFunction).toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
   });
 });

@@ -1,133 +1,103 @@
-import express from 'express';
-import request from 'supertest';
+import { Request, Response, NextFunction } from 'express';
 import { updateValidation } from '../../src/middlewares/updateValidation.middleware';
-import { MikroORM } from '@mikro-orm/core';
+import { getEntityManager } from '../../src/utils/orm';
 import { Transaction } from '../../src/entities/transactions';
 
-// Mock MikroORM functions
-jest.mock("@mikro-orm/core")
+jest.mock('../../src/utils/orm');
 
-// Mock PostgreSqlDriver so it's not used directly in the test environment
-jest.mock("@mikro-orm/postgresql")
+describe('updateValidation middleware', () => {
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: NextFunction;
+  let mockEm: any;
 
-// Mock MikroORM decorators for the Transaction entity
-jest.mock("../../src/entities/transactions", () => ({
-    Transaction: jest.fn().mockImplementation(() => ({
-        id: 1,
-        date: "2025-01-12",
-        description: "Test Transaction",
-        originalAmount: 100,
-        currency: "USD",
-    })),
-}));
+  beforeEach(() => {
+    req = {
+      body: {},
+      params: { id: '1' },
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+    next = jest.fn();
+    mockEm = {
+      findOne: jest.fn(),
+    };
+    (getEntityManager as jest.Mock).mockResolvedValue(mockEm);
+  });
 
-const app = express();
-app.use(express.json());
-app.use('/:id', updateValidation); // Use the middleware with a route parameter
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-describe('updateValidation Middleware', () => {
-    let mockEm: any;
+  it('should return 400 if data types are invalid', async () => {
+    req.body = { date: 123, description: 'Test', originalAmount: '100', currency: 123 };
 
-    beforeEach(() => {
-        mockEm = {
-            findOne: jest.fn(),
-        };
+    await updateValidation(req as Request, res as Response, next);
 
-        // Mock the MikroORM initialization to return our mocked EntityManager
-        (MikroORM.init as jest.Mock).mockResolvedValue({
-            em: {
-                fork: jest.fn().mockReturnValue(mockEm),
-            },
-        });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Invalid data type',
     });
+  });
 
-    it('should return 400 if data types are incorrect', async () => {
-        const response = await request(app).put('/1').send({
-            date: 123, // Invalid type
-            description: 456, // Invalid type
-            originalAmount: "100", // Invalid type
-            currency: true, // Invalid type
-        });
+  it('should return 400 if date format is invalid', async () => {
+    req.body = { date: '01-01-2023', description: 'Test', originalAmount: 100, currency: 'USD' };
 
-        expect(response.status).toBe(400);
-        expect(response.body).toEqual({
-            success: false,
-            message: "Invalid data type",
-        });
+    await updateValidation(req as Request, res as Response, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Invalid date format. Expected format: YYYY-MM-DD',
     });
+  });
 
-    it('should return 400 if originalAmount is negative', async () => {
-        const response = await request(app).put('/1').send({
-            date: "2025-01-12",
-            description: "Test Transaction",
-            originalAmount: -100, // Negative amount
-            currency: "USD",
-        });
+  it('should return 400 if date value is invalid', async () => {
+    req.body = { date: '2023-13-01', description: 'Test', originalAmount: 100, currency: 'USD' };
 
-        expect(response.status).toBe(400);
-        expect(response.body).toEqual({
-            success: false,
-            message: 'Amount cannot be negative',
-        });
+    await updateValidation(req as Request, res as Response, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Invalid date value',
     });
+  });
 
-    it('should return 400 if transaction with same date and description already exists', async () => {
-        mockEm.findOne.mockResolvedValueOnce({ id: 2 }); // Simulate existing transaction with a different ID
+  it('should return 400 if originalAmount is negative', async () => {
+    req.body = { date: '2023-01-01', description: 'Test', originalAmount: -100, currency: 'USD' };
 
-        const response = await request(app).put('/1').send({
-            date: "2025-01-12",
-            description: "Test Transaction",
-            originalAmount: 100,
-            currency: "USD",
-        });
+    await updateValidation(req as Request, res as Response, next);
 
-        expect(response.status).toBe(400);
-        expect(response.body).toEqual({
-            success: false,
-            message: 'Transaction with same date and description already exists',
-        });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Amount cannot be negative',
     });
+  });
 
-    it('should return 400 if the date format is invalid', async () => {
-        const response = await request(app).put('/1').send({
-            date: "01-01-2025", // Invalid date format
-            description: "Test Transaction",
-            originalAmount: 100,
-            currency: "USD",
-        });
+  it('should return 400 if transaction with same date and description already exists', async () => {
+    req.body = { date: '2023-01-01', description: 'Test', originalAmount: 100, currency: 'USD' };
+    mockEm.findOne.mockResolvedValue({ id: 2 });
 
-        expect(response.status).toBe(400);
-        expect(response.body).toEqual({
-            success: false,
-            message: "Invalid date format. Expected format: YYYY-MM-DD",
-        });
+    await updateValidation(req as Request, res as Response, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Transaction with same date and description already exists',
     });
+  });
 
-    it('should return 400 if the date value is invalid', async () => {
-        const response = await request(app).put('/1').send({
-            date: "2025-13-01", // Invalid date value
-            description: "Test Transaction",
-            originalAmount: 100,
-            currency: "USD",
-        });
+  it('should call next if validation passes', async () => {
+    req.body = { date: '2023-01-01', description: 'Test', originalAmount: 100, currency: 'USD' };
+    mockEm.findOne.mockResolvedValue(null);
 
-        expect(response.status).toBe(400);
-        expect(response.body).toEqual({
-            success: false,
-            message: "Invalid date value",
-        });
-    });
+    await updateValidation(req as Request, res as Response, next);
 
-    it('should call next() for valid data', async () => {
-        mockEm.findOne.mockResolvedValueOnce(null); // Simulate no duplicate found
-
-        const response = await request(app).put('/1').send({
-            date: "2025-01-12",
-            description: "Valid Transaction",
-            originalAmount: 100,
-            currency: "USD",
-        });
-
-        expect(response.status).not.toBe(400); // Ensure no error response is sent
-    });
+    expect(next).toHaveBeenCalled();
+  });
 });

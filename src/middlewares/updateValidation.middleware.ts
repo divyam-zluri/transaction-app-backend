@@ -1,11 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { Transaction } from "../entities/transactions";
-import { MikroORM } from "@mikro-orm/core";
-import config from "../../mikro-orm.config";
+import { parse, isValid } from "date-fns";
+import {getEntityManager} from "../utils/orm";
+import { get } from "http";
 
 export async function updateValidation(req: Request, res: Response, next: NextFunction){
-    const orm = await MikroORM.init(config);
-    const em = orm.em.fork();
+    const em = await getEntityManager();
 
     const { date, description, originalAmount, currency } = req.body;
     if ((date && typeof date !== "string") || 
@@ -27,13 +27,13 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
             });
             return;
         }
-        const parsedDate = new Date(date);
-        if (isNaN(parsedDate.getTime())) {
-            res.status(400).json({
+        const checkDate = parse(date, "yyyy-MM-dd", new Date());
+        if (!isValid(checkDate)) {
+          res.status(400).json({
             success: false,
             message: "Invalid date value",
-            });
-            return;
+          });
+          return;
         }
     }
     if(originalAmount && originalAmount < 0){

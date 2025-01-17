@@ -1,16 +1,14 @@
 import { Request, Response, NextFunction } from "express";
 import { Transaction } from "../entities/transactions";
-import { MikroORM } from "@mikro-orm/core";
-import config from "../../mikro-orm.config";
 import { parse, format, isValid } from "date-fns";
+import {getEntityManager} from '../utils/orm'
 
 export async function dataValidation(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  const orm = await MikroORM.init(config);
-  const em = orm.em.fork();
+  const em = await getEntityManager();
 
   const { date, description, originalAmount, currency } = req.body;
   if (!date || !description || !originalAmount || !currency) {

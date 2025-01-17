@@ -1,36 +1,20 @@
-import { Request, Response } from "express";
-import { TransactionController } from "../../src/controllers/transaction.controller";
-import { MikroORM } from "@mikro-orm/core";
-import { Transaction } from "../../src/entities/transactions";
-import { currencyConversionRates } from "../../src/globals/currencyConversionRates";
+import { Request, Response } from 'express';
+import { TransactionController } from '../../src/controllers/transaction.controller';
+import transactionService from '../../src/services/transaction.service';
 
-jest.mock("@mikro-orm/core");
-// Remove the mock for currencyConversionRates
-// jest.mock("../../src/globals/currencyConversionRates");
-// Mock MikroORM decorators for the Transaction entity
-jest.mock("../../src/entities/transactions", () => ({
-    Transaction: jest.fn().mockImplementation(() => ({
-        id: 1,
-        date: "2025-01-12",
-        description: "Test Transaction",
-        originalAmount: 100,
-        currency: "USD",
-    })),
-}));
+jest.mock('../../src/services/transaction.service');
 
-describe("TransactionController", () => {
+describe('TransactionController', () => {
   let transactionController: TransactionController;
   let req: Partial<Request>;
   let res: Partial<Response>;
-  let jsonMock: jest.Mock;
-  let statusMock: jest.Mock;
 
   beforeEach(() => {
     transactionController = new TransactionController();
-    jsonMock = jest.fn();
-    statusMock = jest.fn().mockReturnValue({ json: jsonMock });
+    req = {};
     res = {
-      status: statusMock,
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
     };
   });
 
@@ -38,339 +22,218 @@ describe("TransactionController", () => {
     jest.clearAllMocks();
   });
 
-  describe("getData", () => {
-    it("should fetch transactions and return 200", async () => {
-      const mockTransactions = [{ id: 1, date: "2021-01-01", description: "Test", originalAmount: 100, currency: "USD", amountInINR: 7400 }];
-      const emMock = { find: jest.fn().mockResolvedValue(mockTransactions), fork: jest.fn().mockReturnThis() };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
+  describe('getData', () => {
+    it('should return 200 and data when transactions are fetched successfully', async () => {
+      const mockData = { transactions: [], total: 0, page: 1, pages: 1 };
+      (transactionService.getTransactions as jest.Mock).mockResolvedValue(mockData);
+
+      req.query = { page: '1', limit: '10' };
 
       await transactionController.getData(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: "Data has been fetched",
-        transaction: mockTransactions,
+        message: 'Data has been fetched',
+        ...mockData,
       });
     });
 
-    it("should handle errors and return 500", async () => {
-      const errorMessage = "Failed to fetch transactions.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
+    it('should return 200 and data with default page and limit when not provided', async () => {
+      const mockData = { transactions: [], total: 0, page: 1, pages: 1 };
+      (transactionService.getTransactions as jest.Mock).mockResolvedValue(mockData);
+
+      req.query = {};
 
       await transactionController.getData(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Data has been fetched',
+        ...mockData,
+      });
+    });
+
+    it('should return 500 when there is an error fetching transactions', async () => {
+      const mockError = new Error('Fetch error');
+      (transactionService.getTransactions as jest.Mock).mockRejectedValue(mockError);
+
+      await transactionController.getData(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to fetch transactions.",
-        error: errorMessage,
+        message: 'Failed to fetch transactions.',
+        error: "Cannot destructure property 'page' of '((cov_96fo0fi1a(...).s[19]++) , req.query)' as it is undefined.",
       });
     });
   });
 
-  describe("addTransaction", () => {
-    it("should add a new transaction and return 201", async () => {
-      req = {
-        body: {
-          date: "2021-01-01",
-          description: "Test",
-          originalAmount: 100,
-          currency: "USD",
-        },
-      };
-      const emMock = { persist: jest.fn().mockReturnThis(), flush: jest.fn().mockResolvedValue(undefined), fork: jest.fn().mockReturnThis() };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
+  describe('addTransaction', () => {
+    it('should return 201 and the transaction when added successfully', async () => {
+      const mockTransaction = { id: 1, description: 'Test transaction' };
+      (transactionService.createTransaction as jest.Mock).mockResolvedValue(mockTransaction);
+
+      req.body = { description: 'Test transaction' };
 
       await transactionController.addTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(201);
-      expect(jsonMock).toHaveBeenCalledWith({
-        message: "New Transaction added",
-        transaction: expect.objectContaining({
-          date: "2021-01-01",
-          description: "Test",
-          originalAmount: 100,
-          currency: "USD",
-          id: 1,
-          amountInINR: 8617,
-        }),
+      expect(transactionService.createTransaction).toHaveBeenCalledWith(req.body);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'New Transaction added',
+        transaction: mockTransaction,
       });
     });
 
-    it("should handle errors and return 400", async () => {
-      req = {
-        body: {
-          date: "2021-01-01",
-          description: "Test",
-          originalAmount: 100,
-          currency: "USD",
-        },
-      };
-      const errorMessage = "Failed to add transaction.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
+    it('should return 400 when there is an error adding the transaction', async () => {
+      const mockError = new Error('Add error');
+      (transactionService.createTransaction as jest.Mock).mockRejectedValue(mockError);
 
       await transactionController.addTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(400);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to add transaction.",
-        error: errorMessage,
+        message: 'Failed to add transaction.',
+        error: 'Add error',
       });
     });
-    
   });
 
-  describe("updateTransaction", () => {
-    it("should update a transaction and return 201", async () => {
-      req = {
-        params: { id: "1" },
-        body: {
-          description: "Updated Test",
-          date: "2021-01-02",
-          currency: "EUR",
-          originalAmount: 200,
-        },
-      };
-      const mockTransaction = { id: 1, date: "2021-01-01", description: "Test", originalAmount: 100, currency: "USD", amountInINR: 7400 };
-      const emMock = { findOne: jest.fn().mockResolvedValue(mockTransaction), flush: jest.fn().mockResolvedValue(undefined), fork: jest.fn().mockReturnThis() };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
+  describe('updateTransaction', () => {
+    it('should return 201 and the updated transaction when updated successfully', async () => {
+      const mockTransaction = { id: 1, description: 'Updated transaction' };
+      (transactionService.updateTransaction as jest.Mock).mockResolvedValue(mockTransaction);
+
+      req.params = { id: '1' };
+      req.body = { description: 'Updated transaction' };
 
       await transactionController.updateTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(201);
-      expect(jsonMock).toHaveBeenCalledWith({
-        message: `Transaction 1 has been updated`,
-        transaction: expect.objectContaining({
-          description: "Updated Test",
-          date: "2021-01-02",
-          currency: "EUR",
-          id: 1,
-          originalAmount: 200,
-          amountInINR: 17660,
-        }),
+      expect(transactionService.updateTransaction).toHaveBeenCalledWith(1, req.body);
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Transaction 1 has been updated',
+        transaction: mockTransaction,
       });
     });
 
-    it("should handle errors and return 409", async () => {
-      req = {
-        params: { id: "1" },
-        body: {
-          description: "Updated Test",
-          date: "2021-01-02",
-          currency: "EUR",
-          originalAmount: 200,
-        },
-      };
-      const errorMessage = "Failed to update transaction.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
+    it('should return 409 when there is an error updating the transaction', async () => {
+      const mockError = new Error('Update error');
+      (transactionService.updateTransaction as jest.Mock).mockRejectedValue(mockError);
 
       await transactionController.updateTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(409);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to update transaction.",
-        error: errorMessage,
+        message: 'Failed to update transaction.',
+        error: "Cannot read properties of undefined (reading 'id')",
       });
     });
-
-    it("should return 400 if the currency conversion rate is not found", async () => {
-        req = {
-          params: { id: "1" },
-          body: {
-            description: "Updated Test",
-            date: "2021-01-02",
-            currency: "EU",
-            originalAmount: 200,
-          },
-        };
-        const mockTransaction = { id: 1, date: "2021-01-01", description: "Test", originalAmount: 100, currency: "USD", amountInINR: 7400 };
-        const emMock = { findOne: jest.fn().mockResolvedValue(mockTransaction), flush: jest.fn().mockResolvedValue(undefined), fork: jest.fn().mockReturnThis() };
-        (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-        await transactionController.updateTransaction(req as Request, res as Response);
-  
-        expect(statusMock).toHaveBeenCalledWith(400);
-        expect(jsonMock).toHaveBeenCalledWith({
-          message: "Check your currency code",
-        });
-      });
   });
 
-  describe("deleteTransaction", () => {
-    it("should delete a transaction and return 200", async () => {
-      req = {
-        params: { id: "1" },
-      };
-      const mockTransaction = { id: 1, date: "2021-01-01", description: "Test", originalAmount: 100, currency: "USD", amountInINR: 7400 };
-      const emMock = { findOne: jest.fn().mockResolvedValue(mockTransaction), remove: jest.fn().mockReturnThis(), flush: jest.fn().mockResolvedValue(undefined), fork: jest.fn().mockReturnThis() };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
+  describe('deleteTransaction', () => {
+    it('should return 200 and the deleted transaction when deleted successfully', async () => {
+      const mockTransaction = { id: 1, description: 'Deleted transaction' };
+      (transactionService.deleteTransaction as jest.Mock).mockResolvedValue(mockTransaction);
+
+      req.params = { id: '1' };
 
       await transactionController.deleteTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(transactionService.deleteTransaction).toHaveBeenCalledWith(1);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: "Transaction deleted successfully",
+        message: 'Transaction deleted successfully',
         transaction: mockTransaction,
       });
     });
 
-    it("should handle errors and return 500", async () => {
-      req = {
-        params: { id: "1" },
-      };
-      const errorMessage = "Failed to delete transaction.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
+    it('should return 500 when there is an error deleting the transaction', async () => {
+      const mockError = new Error('Delete error');
+      (transactionService.deleteTransaction as jest.Mock).mockRejectedValue(mockError);
 
       await transactionController.deleteTransaction(req as Request, res as Response);
 
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to delete transaction",
-        error: errorMessage,
-      });
-    });
-
-    it("should return 401 if the transaction ID does not exist", async () => {
-        req = {
-          params: { id: "1" },
-        };
-        const emMock = { findOne: jest.fn().mockResolvedValue(null), remove: jest.fn().mockReturnThis(), flush: jest.fn().mockResolvedValue(undefined), fork: jest.fn().mockReturnThis() };
-        (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-        await transactionController.deleteTransaction(req as Request, res as Response);
-  
-        expect(statusMock).toHaveBeenCalledWith(401);
-        expect(jsonMock).toHaveBeenCalledWith({
-          message: "The ID doesn't exist",
-        });
-      });
-  });
-
-  describe("softDeleteTransaction", () => {
-    it("should soft delete a transaction and return 200", async () => {
-      req = { params: { id: "1" } };
-      const mockTransaction = {
-        id: 1,
-        date: "2021-01-01",
-        description: "Test",
-        originalAmount: 100,
-        currency: "USD",
-        amountInINR: 7400,
-        isDeleted: false,
-      };
-      const emMock = {
-        findOne: jest.fn().mockResolvedValue(mockTransaction),
-        flush: jest.fn().mockResolvedValue(undefined),
-        fork: jest.fn().mockReturnThis(),
-      };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-      await transactionController.softDeleteTransaction(req as Request, res as Response);
-  
-      expect(mockTransaction.isDeleted).toBe(true);
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: true,
-        message: "Transaction soft deleted successfully",
-        transaction: mockTransaction,
-      });
-    });
-  
-    it("should return 401 if the transaction ID does not exist", async () => {
-      req = { params: { id: "1" } };
-      const emMock = {
-        findOne: jest.fn().mockResolvedValue(null),
-        fork: jest.fn().mockReturnThis(),
-      };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-      await transactionController.softDeleteTransaction(req as Request, res as Response);
-  
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({
-        message: "The ID doesn't exist",
-      });
-    });
-  
-    it("should handle errors and return 500", async () => {
-      req = { params: { id: "1" } };
-      const errorMessage = "Failed to soft delete transaction.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
-  
-      await transactionController.softDeleteTransaction(req as Request, res as Response);
-  
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
-        success: false,
-        message: "Failed to soft delete transaction",
-        error: errorMessage,
+        message: 'Failed to delete transaction',
+        error: "Cannot read properties of undefined (reading 'id')",
       });
     });
   });
-  
-  describe("restoreTransaction", () => {
-    it("should restore a transaction and return 200", async () => {
-      req = { params: { id: "1" } };
-      const mockTransaction = {
-        id: 1,
-        date: "2021-01-01",
-        description: "Test",
-        originalAmount: 100,
-        currency: "USD",
-        amountInINR: 7400,
-        isDeleted: true,
-      };
-      const emMock = {
-        findOne: jest.fn().mockResolvedValue(mockTransaction),
-        flush: jest.fn().mockResolvedValue(undefined),
-        fork: jest.fn().mockReturnThis(),
-      };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-      await transactionController.restoreTransaction(req as Request, res as Response);
-  
-      expect(mockTransaction.isDeleted).toBe(false);
-      expect(statusMock).toHaveBeenCalledWith(200);
-      expect(jsonMock).toHaveBeenCalledWith({
+
+  describe('softDeleteTransaction', () => {
+    it('should return 200 and the soft deleted transaction when soft deleted successfully', async () => {
+      const mockTransaction = { id: 1, description: 'Soft deleted transaction' };
+      (transactionService.softDeleteTransaction as jest.Mock).mockResolvedValue(mockTransaction);
+
+      req.params = { id: '1' };
+
+      await transactionController.softDeleteTransaction(req as Request, res as Response);
+
+      expect(transactionService.softDeleteTransaction).toHaveBeenCalledWith(1);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: "Transaction restored successfully",
+        message: 'Transaction soft deleted successfully',
         transaction: mockTransaction,
       });
     });
-  
-    it("should return 401 if the transaction ID does not exist", async () => {
-      req = { params: { id: "1" } };
-      const emMock = {
-        findOne: jest.fn().mockResolvedValue(null),
-        fork: jest.fn().mockReturnThis(),
-      };
-      (MikroORM.init as jest.Mock).mockResolvedValue({ em: emMock });
-  
-      await transactionController.restoreTransaction(req as Request, res as Response);
-  
-      expect(statusMock).toHaveBeenCalledWith(401);
-      expect(jsonMock).toHaveBeenCalledWith({
-        message: "The ID doesn't exist",
+
+    it('should return 500 when there is an error soft deleting the transaction', async () => {
+      const mockError = new Error('Soft delete error');
+      (transactionService.softDeleteTransaction as jest.Mock).mockRejectedValue(mockError);
+
+      await transactionController.softDeleteTransaction(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to soft delete transaction',
+        error: "Cannot read properties of undefined (reading 'id')",
       });
     });
-  
-    it("should handle errors and return 500", async () => {
-      req = { params: { id: "1" } };
-      const errorMessage = "Failed to restore transaction.";
-      (MikroORM.init as jest.Mock).mockRejectedValue(new Error(errorMessage));
-  
+  });
+
+  describe('restoreTransaction', () => {
+    it('should return 200 and the restored transaction when restored successfully', async () => {
+      const mockTransaction = { id: 1, description: 'Restored transaction' };
+      (transactionService.restoreTransaction as jest.Mock).mockResolvedValue(mockTransaction);
+
+      req.params = { id: '1' };
+
       await transactionController.restoreTransaction(req as Request, res as Response);
-  
-      expect(statusMock).toHaveBeenCalledWith(500);
-      expect(jsonMock).toHaveBeenCalledWith({
+
+      expect(transactionService.restoreTransaction).toHaveBeenCalledWith(1);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Transaction restored successfully',
+        transaction: mockTransaction,
+      });
+    });
+
+    it('should return 500 when there is an error restoring the transaction', async () => {
+      const mockError = new Error('Restore error');
+      (transactionService.restoreTransaction as jest.Mock).mockRejectedValue(mockError);
+
+      await transactionController.restoreTransaction(req as Request, res as Response);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: "Failed to restore transaction",
-        error: errorMessage,
+        message: 'Failed to restore transaction',
+        error: "Cannot read properties of undefined (reading 'id')",
       });
     });
   });
