@@ -11,6 +11,7 @@ import { downloadTransactions } from "../controllers/download.controller";
 import { transactionSummaryReport } from "../controllers/report.controller";
 import { pageLimit } from "../middlewares/pageLimit.middleware";
 import { deleteSelected } from "../controllers/selected.controller";
+import {search} from "../controllers/search.controller";
 
 const router = express.Router();
 const transactionController = new TransactionController();
@@ -26,4 +27,5 @@ router.put('/restore/:id', idValidation, transactionController.restoreTransactio
 router.get('/download', downloadTransactions);
 router.get('/report', transactionSummaryReport);
 router.delete('/delete-selected', deleteSelected);
+router.get('/search', search);
 export default router;
