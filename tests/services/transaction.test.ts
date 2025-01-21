@@ -178,7 +178,7 @@ describe('TransactionService', () => {
     expect(mockEm.findAndCount).toHaveBeenCalledWith(
       Transaction,
       { isDeleted: false },
-      { orderBy: { date: "asc" }, limit: 10, offset: 0 }
+      { orderBy: { date: "desc" }, limit: 10, offset: 0 }
     );
 
     expect(result).toEqual({
