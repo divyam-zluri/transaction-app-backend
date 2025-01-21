@@ -43,7 +43,7 @@ export async function search(req: Request, res: Response) {
       Transaction,
       filters,
       {
-        orderBy: { date: 'asc' }, // Sort by date ascending
+        orderBy: { date: 'desc' }, // Sort by date ascending
         limit: limitNumber,
         offset,
       }

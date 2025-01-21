@@ -9,7 +9,7 @@ export class TransactionService {
     const [transactions, total] = await em.findAndCount(
       Transaction,
       { isDeleted: false },
-      { orderBy: { date: "asc" }, limit, offset }
+      { orderBy: { date: "desc" }, limit, offset }
     );
 
     return {
