@@ -27,11 +27,11 @@ describe('TransactionController', () => {
       const mockData = { transactions: [], total: 0, page: 1, pages: 1 };
       (transactionService.getTransactions as jest.Mock).mockResolvedValue(mockData);
 
-      req.query = { page: '1', limit: '10' };
+      req.query = { page: '1', limit: '10', isDeleted: 'false' };
 
       await transactionController.getData(req as Request, res as Response);
 
-      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10);
+      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10, false);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -48,7 +48,24 @@ describe('TransactionController', () => {
 
       await transactionController.getData(req as Request, res as Response);
 
-      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10);
+      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10, false);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Data has been fetched',
+        ...mockData,
+      });
+    });
+
+    it('should return 200 and data when transactions are fetched successfully', async () => {
+      const mockData = { transactions: [], total: 0, page: 1, pages: 1 };
+      (transactionService.getTransactions as jest.Mock).mockResolvedValue(mockData);
+
+      req.query = { page: '1', limit: '10', isDeleted: 'true' };
+
+      await transactionController.getData(req as Request, res as Response);
+
+      expect(transactionService.getTransactions).toHaveBeenCalledWith(1, 10, true);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         success: true,

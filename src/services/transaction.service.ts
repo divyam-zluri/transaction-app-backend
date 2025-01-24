@@ -3,12 +3,12 @@ import { currencyConversionRates } from "../globals/currencyConversionRates";
 import { getEntityManager } from "../utils/orm";
 
 export class TransactionService {
-  public async getTransactions(page: number = 1, limit: number = 10) {
+  public async getTransactions(page: number = 1, limit: number = 10, deleted : boolean) {
     const em = await getEntityManager();
     const offset = (page - 1) * limit;
     const [transactions, total] = await em.findAndCount(
       Transaction,
-      { isDeleted: false },
+      { isDeleted: deleted },
       { orderBy: { date: "desc" }, limit, offset }
     );
 

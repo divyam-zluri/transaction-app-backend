@@ -13,6 +13,7 @@ describe('deleteSelected', () => {
   beforeEach(() => {
     req = {
       body: {},
+      query: {},
     };
     res = {
       status: jest.fn().mockReturnThis(),
@@ -44,8 +45,9 @@ describe('deleteSelected', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'No transactions found with the provided ids' });
   });
 
-  it('should delete selected transactions and return 200', async () => {
+  it('should soft delete selected transactions and return 200 when isDeleted is true', async () => {
     req.body = { ids: [1, 2] };
+    req.query = { isDeleted: 'true' };
     const transactions = [
       { id: 1, isDeleted: false },
       { id: 2, isDeleted: false },
@@ -57,6 +59,23 @@ describe('deleteSelected', () => {
     expect(em.find).toHaveBeenCalledWith(Transaction, { id: [1, 2] });
     expect(transactions[0].isDeleted).toBe(true);
     expect(transactions[1].isDeleted).toBe(true);
+    expect(em.flush).toHaveBeenCalled();
+  });
+
+  it('should restore selected transactions and return 200 when isDeleted is false', async () => {
+    req.body = { ids: [1, 2] };
+    req.query = { isDeleted: 'false' };
+    const transactions = [
+      { id: 1, isDeleted: true },
+      { id: 2, isDeleted: true },
+    ];
+    em.find.mockResolvedValue(transactions);
+    await deleteSelected(req as Request, res as Response);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Selected transactions deleted successfully' });
+    expect(em.find).toHaveBeenCalledWith(Transaction, { id: [1, 2] });
+    expect(transactions[0].isDeleted).toBe(false);
+    expect(transactions[1].isDeleted).toBe(false);
     expect(em.flush).toHaveBeenCalled();
   });
 

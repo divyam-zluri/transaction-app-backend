@@ -28,7 +28,7 @@ describe('TransactionService', () => {
       findAndCount: jest.fn().mockResolvedValue([mockTransactions, 2]),
     });
 
-    const result = await transactionService.getTransactions(1, 2);
+    const result = await transactionService.getTransactions(1, 2, false);
 
     expect(result.transactions).toHaveLength(2);
     expect(result.total).toBe(2);
@@ -173,7 +173,7 @@ describe('TransactionService', () => {
 
     (getEntityManager as jest.Mock).mockResolvedValue(mockEm);
 
-    const result = await transactionService.getTransactions();
+    const result = await transactionService.getTransactions(undefined, undefined, false);
 
     expect(mockEm.findAndCount).toHaveBeenCalledWith(
       Transaction,
@@ -188,6 +188,7 @@ describe('TransactionService', () => {
       pages: 1,
     });
   });
+
   it('should delete a transaction', async () => {
     const mockTransaction = new Transaction();
     (getEntityManager as jest.Mock).mockResolvedValue({

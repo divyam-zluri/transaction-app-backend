@@ -4,8 +4,8 @@ import { isValid } from 'date-fns';
 import { getEntityManager } from '../utils/orm';
 
 export async function search(req: Request, res: Response) {
-  const { description, amount, date, currency, page = 1, limit = 10 } = req.query;
-
+  const { description, amount, date, currency, page = 1, limit = 10, isDeleted} = req.query;
+  const deleted = isDeleted === 'true' ? true : false;
   // Validate date
   if (date && !isValid(new Date(date as string))) {
     res.status(400).json({
@@ -19,7 +19,7 @@ export async function search(req: Request, res: Response) {
     const em = await getEntityManager();
 
     // Build query filters
-    const filters: Record<string, any> = { isDeleted: false };
+    const filters: Record<string, any> = { isDeleted: deleted };
     if (description) {
       filters.description = { $ilike: `%${description}%` }; // Case-insensitive search for description
     }

@@ -4,11 +4,13 @@ import transactionService from "../services/transaction.service";
 export class TransactionController {
   public async getData(req: Request, res: Response) {
     try {
-      const { page, limit } = req.query;
-      // console.log(page, limit);
+      const { page, limit , isDeleted} = req.query;
+      const deleted = isDeleted === 'true' ? true : false;
+      
       const data = await transactionService.getTransactions(
         Number(page) || 1,
-        Number(limit) || 10
+        Number(limit) || 10,
+        Boolean(deleted) || false
       );
       res.status(200).json({
         success: true,

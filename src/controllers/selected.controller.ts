@@ -4,6 +4,9 @@ import {Request, Response} from 'express';
 
 export async function deleteSelected(req : Request, res : Response) {
     const { ids } = req.body;
+    const { isDeleted } = req.query;
+    const deleted = isDeleted === 'true' ? true : false;
+    
     if (!Array.isArray(ids) || ids.length === 0) {
       res.status(400).json({ message: 'Invalid request, ids must be a non-empty array' });
       return;
@@ -19,7 +22,7 @@ export async function deleteSelected(req : Request, res : Response) {
       }
   
       transactions.forEach(transaction => {
-        transaction.isDeleted = true;
+        transaction.isDeleted = deleted;
       });
   
       await em.flush();

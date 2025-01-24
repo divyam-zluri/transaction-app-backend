@@ -45,7 +45,7 @@ describe('search', () => {
 
   it('should return 200 with filtered transactions by description', async () => {
     (isValid as jest.Mock).mockReturnValue(true);
-    req.query = { description: 'PayPal', page: '1', limit: '10' };
+    req.query = { description: 'PayPal', page: '1', limit: '10', isDeleted: 'false' };
     const transactions = [
       {
         id: 1,
@@ -82,7 +82,7 @@ describe('search', () => {
 
   it('should return 200 with filtered transactions by amount', async () => {
     (isValid as jest.Mock).mockReturnValue(true);
-    req.query = { amount: '100', page: '1', limit: '10' };
+    req.query = { amount: '100', page: '1', limit: '10', isDeleted: 'false' };
     const transactions = [
       {
         id: 1,
@@ -119,7 +119,7 @@ describe('search', () => {
 
   it('should return 200 with filtered transactions by date', async () => {
     (isValid as jest.Mock).mockReturnValue(true);
-    req.query = { date: '2021-01-01', page: '1', limit: '10' };
+    req.query = { date: '2021-01-01', page: '1', limit: '10', isDeleted: 'false' };
     const transactions = [
       {
         id: 1,
@@ -156,7 +156,7 @@ describe('search', () => {
 
   it('should return 200 with filtered transactions by currency', async () => {
     (isValid as jest.Mock).mockReturnValue(true);
-    req.query = { currency: 'USD', page: '1', limit: '10' };
+    req.query = { currency: 'USD', page: '1', limit: '10', isDeleted: 'false' };
     const transactions = [
       {
         id: 1,
@@ -191,9 +191,46 @@ describe('search', () => {
     });
   });
 
+  it('should return 200 with filtered transactions by isDeleted set to true', async () => {
+    (isValid as jest.Mock).mockReturnValue(true);
+    req.query = { page: '1', limit: '10', isDeleted: 'true' };
+    const transactions = [
+      {
+        id: 1,
+        date: new Date('2021-01-01'),
+        description: 'PayPal',
+        originalAmount: 100,
+        currency: 'USD',
+        amountInINR: 7400,
+        isDeleted: true,
+      },
+    ];
+    em.findAndCount.mockResolvedValue([transactions, 1]);
+
+    await search(req as Request, res as Response);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: 'Data has been fetched',
+      transactions: transactions.map((transaction) => ({
+        id: transaction.id,
+        date: transaction.date,
+        description: transaction.description,
+        originalAmount: transaction.originalAmount,
+        currency: transaction.currency,
+        amountInINR: transaction.amountInINR,
+        isDeleted: transaction.isDeleted,
+      })),
+      total: 1,
+      page: 1,
+      pages: 1,
+    });
+  });
+
   it('should return 500 if there is an error fetching transactions', async () => {
     (isValid as jest.Mock).mockReturnValue(true);
-    req.query = { description: 'PayPal', page: '1', limit: '10' };
+    req.query = { description: 'PayPal', page: '1', limit: '10', isDeleted: 'false' };
     em.findAndCount.mockRejectedValue(new Error('Database error'));
 
     await search(req as Request, res as Response);
