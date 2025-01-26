@@ -6,8 +6,14 @@ import {z} from 'zod';
 export async function deleteSelected(req : Request, res : Response) {
   const { ids } = req.body;
   const { isDeleted } = req.query;
+  console.log(isDeleted);
+  if(isDeleted !== undefined && isDeleted !== 'true' && isDeleted !== 'false') {
+    res.status(400).json({ 
+      message: 'Invalid request, isDeleted must be a boolean' 
+    });
+    return;
+  }
   const deleted = isDeleted === 'true' ? true : false;
-  
   const schema = z.array(z.number());
 
   const validateNumberArray = (data: any) => {
@@ -43,9 +49,9 @@ export async function deleteSelected(req : Request, res : Response) {
       transactions.forEach(transaction => {
         transaction.isDeleted = deleted;
       });
-  
+      
       await em.flush();
-      res.status(200).json({ message: 'Selected transactions deleted successfully' });
+      res.status(200).json({ message: `Selected transactions ${deleted == true ? 'deleted' : 'restored'} successfully` });
     } catch (error) {
       console.error('Error deleting selected transactions:', error);
       res.status(500).json({ message: 'Error deleting selected transactions' });

@@ -5,8 +5,14 @@ export class TransactionController {
   public async getData(req: Request, res: Response) {
     try {
       const { page, limit , isDeleted} = req.query;
+      console.log(isDeleted);
+      if(isDeleted !== undefined && isDeleted !== 'true' && isDeleted !== 'false') {
+        res.status(400).json({ 
+          message: 'Invalid request, isDeleted must be a boolean' 
+        });
+        return;
+      }
       const deleted = isDeleted === 'true' ? true : false;
-      
       const data = await transactionService.getTransactions(
         Number(page) || 1,
         Number(limit) || 10,
