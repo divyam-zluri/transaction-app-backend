@@ -2,16 +2,49 @@ import { Request, Response } from 'express';
 import { Transaction } from '../entities/transactions';
 import { isValid } from 'date-fns';
 import { getEntityManager } from '../utils/orm';
+import { z } from 'zod';
+import { currencyConversionRates } from '../globals/currencyConversionRates';
+
+const searchSchema = z.object({
+  description: z.string().optional(),
+  amount: z.preprocess((val) => (val ? parseFloat(val as string) : undefined), z.number().optional()),
+  date: z.preprocess((val) => (val ? new Date(val as string) : undefined), z.date().optional()),
+  currency: z.string().optional(),
+  page: z.preprocess((val) => (val ? parseInt(val as string, 10) : 1), z.number().default(1)),
+  limit: z.preprocess((val) => (val ? parseInt(val as string, 10) : 10), z.number().default(10)),
+  isDeleted: z.string().optional(),
+}).refine((data) => data.description || data.amount || data.date || data.currency, {
+  message: "At least one of 'description', 'amount', 'date', or 'currency' must be provided",
+});
 
 export async function search(req: Request, res: Response) {
-  const { description, amount, date, currency, page = 1, limit = 10, isDeleted} = req.query;
+  const validationResult = searchSchema.safeParse(req.query);
+
+  if (!validationResult.success) {
+    res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: validationResult.error.errors,
+    });
+    return;
+  }
+
+  const { description, amount, date, currency, page, limit, isDeleted } = validationResult.data;
   const deleted = isDeleted === 'true' ? true : false;
+
   // Validate date
-  if (date && !isValid(new Date(date as string))) {
+  if (date && !isValid(date)) {
     res.status(400).json({
       success: false,
       message: 'Please provide a valid date',
     });
+    return;
+  }
+  if(currency && !currencyConversionRates.get(currency)){
+    res.status(400).json({
+      success:false,
+      message:'Please provide a valid currency'
+    })
     return;
   }
 
@@ -24,18 +57,18 @@ export async function search(req: Request, res: Response) {
       filters.description = { $ilike: `%${description}%` }; // Case-insensitive search for description
     }
     if (amount) {
-      filters.originalAmount = parseFloat(amount as string); // Filter by amount
+      filters.originalAmount = amount; // Filter by amount
     }
     if (date) {
-      filters.date = new Date(date as string); // Exact date match
+      filters.date = date; // Exact date match
     }
     if (currency) {
       filters.currency = currency; // Filter by currency
     }
 
     // Pagination logic
-    const pageNumber = Math.max(1, parseInt(page as string, 10)); // Ensure page is at least 1
-    const limitNumber = Math.max(1, parseInt(limit as string, 10)); // Ensure limit is at least 1
+    const pageNumber = Math.max(1, page); // Ensure page is at least 1
+    const limitNumber = Math.max(1, limit); // Ensure limit is at least 1
     const offset = (pageNumber - 1) * limitNumber;
 
     // Query database
@@ -48,6 +81,19 @@ export async function search(req: Request, res: Response) {
         offset,
       }
     );
+
+    // Check if no transactions were found
+    if (transactions.length === 0) {
+      res.status(200).json({
+        success: true,
+        message: 'No data available',
+        transactions: [],
+        total: 0,
+        page: pageNumber,
+        pages: 0,
+      });
+      return;
+    }
 
     // Calculate total pages
     const totalPages = Math.ceil(total / limitNumber);
