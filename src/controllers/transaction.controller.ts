@@ -5,7 +5,7 @@ export class TransactionController {
   public async getData(req: Request, res: Response) {
     try {
       const { page, limit , isDeleted} = req.query;
-      console.log(isDeleted);
+      
       if(isDeleted !== undefined && isDeleted !== 'true' && isDeleted !== 'false') {
         res.status(400).json({ 
           message: 'Invalid request, isDeleted must be a boolean' 

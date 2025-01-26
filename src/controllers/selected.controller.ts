@@ -6,7 +6,7 @@ import {z} from 'zod';
 export async function deleteSelected(req : Request, res : Response) {
   const { ids } = req.body;
   const { isDeleted } = req.query;
-  console.log(isDeleted);
+  
   if(isDeleted !== undefined && isDeleted !== 'true' && isDeleted !== 'false') {
     res.status(400).json({ 
       message: 'Invalid request, isDeleted must be a boolean' 
