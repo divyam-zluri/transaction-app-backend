@@ -1,38 +1,44 @@
 import { Request, Response } from 'express';
 import { Transaction } from '../entities/transactions';
 import { getEntityManager } from '../utils/orm';
+import { z } from 'zod';
+
+const reportSchema = z.object({
+  startYear: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(0)),
+  endYear: z.preprocess((val) => parseInt(val as string, 10), z.number().int().min(0)),
+});
 
 export async function transactionSummaryReport(req: Request, res: Response) {
-  const { startYear, endYear } = req.query;
-  if (!startYear || !endYear) {
+  const validationResult = reportSchema.safeParse(req.query);
+
+  if (!validationResult.success) {
     res.status(400).json({
       success: false,
-      message: 'Please provide both startYear and endYear',
+      message: 'Validation failed',
+      errors: validationResult.error.errors,
     });
     return;
   }
+
+  const { startYear, endYear } = validationResult.data;
+
+  if (startYear > endYear || endYear > new Date().getFullYear() + 1) {
+    res.status(400).json({
+      success: false,
+      message: `Please provide a valid year range. Year must be less than ${new Date().getFullYear() + 1}`,
+    });
+    return;
+  }
+
   try {
-    if(isNaN(Number(startYear)) || isNaN(Number(endYear)) || Number(startYear) < 0 || Number(endYear) < 0){
-      res.status(400).json({
-        success: false,
-        message: 'Please provide a valid year value',
-      });
-      return;
-    }
-    if(startYear > endYear || Number(endYear) > new Date().getFullYear()+1){
-      res.status(400).json({
-        success: false,
-        message: `Please provide a valid year range. Year must be less than ${new Date().getFullYear()+1}`
-      });
-      return;
-    }
-    const em = await getEntityManager(); 
+    const em = await getEntityManager();
     const transactions = await em.find(Transaction, {
       date: {
-        $gte: new Date(startYear as string),
-        $lte: new Date(endYear as string),
+        $gte: new Date(`${startYear}-01-01`),
+        $lte: new Date(`${endYear}-12-31`),
       },
     });
+
     if (transactions.length === 0) {
       res.status(404).json({
         success: false,
