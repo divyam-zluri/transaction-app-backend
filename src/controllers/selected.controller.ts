@@ -1,12 +1,31 @@
 import { getEntityManager } from "../utils/orm";
 import { Transaction } from "../entities/transactions";
 import {Request, Response} from 'express';
+import {z} from 'zod';
 
 export async function deleteSelected(req : Request, res : Response) {
-    const { ids } = req.body;
-    const { isDeleted } = req.query;
-    const deleted = isDeleted === 'true' ? true : false;
-    
+  const { ids } = req.body;
+  const { isDeleted } = req.query;
+  const deleted = isDeleted === 'true' ? true : false;
+  
+  const schema = z.array(z.number());
+
+  const validateNumberArray = (data: any) => {
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      res.status(400).json({
+        message: 'Validation failed',
+        errors: result.error.errors
+      });
+      return false;
+    }
+    return true;
+  };
+  
+  if (!validateNumberArray(ids)) {
+    return;
+  }
+
     if (!Array.isArray(ids) || ids.length === 0) {
       res.status(400).json({ message: 'Invalid request, ids must be a non-empty array' });
       return;
