@@ -24,7 +24,8 @@ export class TransactionService {
     const { date, description, originalAmount, currency } = data;
     const em = await getEntityManager();
 
-    if (!currencyConversionRates.has(currency)) {
+    if (!currencyConversionRates.has(currency.toUpperCase())) {
+      console.log("Hello from invalid");
       throw new Error("Invalid currency code");
     }
 
@@ -32,9 +33,9 @@ export class TransactionService {
     transaction.date = date;
     transaction.description = description;
     transaction.originalAmount = originalAmount;
-    transaction.currency = currency;
+    transaction.currency = currency.toUpperCase();
     transaction.amountInINR =
-      originalAmount * currencyConversionRates.get(currency)!;
+      originalAmount * currencyConversionRates.get(transaction.currency)!;
 
     await em.persist(transaction).flush();
     return transaction;
@@ -52,12 +53,12 @@ export class TransactionService {
     if (data.date !== undefined) transaction.date = data.date;
 
     if (data.currency !== undefined) {
-      if (!currencyConversionRates.has(data.currency)) {
+      if (!currencyConversionRates.has(data.currency.toUpperCase())) {
         throw new Error("Invalid currency code");
       }
-      transaction.currency = data.currency;
+      transaction.currency = data.currency.toUpperCase();
       transaction.amountInINR =
-        transaction.originalAmount * currencyConversionRates.get(data.currency)!;
+        transaction.originalAmount * currencyConversionRates.get(transaction.currency)!;
     }
 
     if (data.originalAmount !== undefined) {

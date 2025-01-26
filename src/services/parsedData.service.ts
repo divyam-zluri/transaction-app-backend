@@ -60,7 +60,7 @@ export class TransactionService {
           continue;
         }
 
-        const conversionRate = getConversionRate(data.Currency);
+        const conversionRate = getConversionRate(data.Currency.toUpperCase());
         if (!conversionRate) {
           warnings.push(`Invalid currency code: ${data.Currency}`);
           continue;
@@ -91,7 +91,7 @@ export class TransactionService {
         transaction.date = date;
         transaction.description = data.Description;
         transaction.originalAmount = data.Amount;
-        transaction.currency = data.Currency;
+        transaction.currency = data.Currency.toUpperCase();
         transaction.amountInINR = data.Amount * conversionRate;
 
         validTransactions.push(transaction);

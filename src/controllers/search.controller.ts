@@ -40,7 +40,7 @@ export async function search(req: Request, res: Response) {
     });
     return;
   }
-  if(currency && !currencyConversionRates.get(currency)){
+  if(currency && !currencyConversionRates.get(currency.toUpperCase())) {
     res.status(400).json({
       success:false,
       message:'Please provide a valid currency'
@@ -63,7 +63,7 @@ export async function search(req: Request, res: Response) {
       filters.date = date; // Exact date match
     }
     if (currency) {
-      filters.currency = currency; // Filter by currency
+      filters.currency = currency.toUpperCase(); // Filter by currency
     }
 
     // Pagination logic
