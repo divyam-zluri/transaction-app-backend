@@ -93,6 +93,12 @@ export async function search(req: Request, res: Response) {
         offset,
       }
     );
+    if(pageNumber > 1 && pageNumber > Math.ceil(total / limitNumber)){
+      res.status(400).json({
+        message: "Invalid page number. Pages cannot be greater than total pages",
+      });
+      return;
+    }
 
     // Check if no transactions were found
     if (transactions.length === 0) {

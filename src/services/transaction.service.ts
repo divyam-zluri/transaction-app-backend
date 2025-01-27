@@ -12,6 +12,10 @@ export class TransactionService {
       { orderBy: { date: "desc" }, limit, offset }
     );
 
+    if(page > 1 && page > Math.ceil(total / limit)) {
+      throw new Error("Invalid page number. Pages cannot be greater than total pages");
+    }
+
     return {
       transactions,
       total,
