@@ -62,11 +62,11 @@ export async function dataValidation(
     });
     return;
   }
-  if (originalAmount < 0) {
+  if(originalAmount < 1){
     res.status(400).json({
-      success: false,
-      message: "Amount cannot be negative",
-    });
+        success: false,
+        message: 'Amount must be greater than 0'
+    })
     return;
   }
 

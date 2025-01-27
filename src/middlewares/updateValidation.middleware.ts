@@ -18,6 +18,13 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
         });
         return;
     }
+    if(description==""){
+        res.status(400).json({
+            success: false,
+            message: 'Description cannot be empty'
+        })
+        return;
+    }
     if(date){
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
         if (!dateRegex.test(date)) {
@@ -49,10 +56,11 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
             return;
         }
     }
-    if(originalAmount && originalAmount < 0){
+    
+    if(originalAmount !== undefined && originalAmount < 1){
         res.status(400).json({
             success: false,
-            message: 'Amount cannot be negative'
+            message: 'Amount must be greater than 0'
         })
         return;
     }
