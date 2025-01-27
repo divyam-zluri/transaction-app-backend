@@ -30,8 +30,13 @@ export async function search(req: Request, res: Response) {
   }
 
   const { description, amount, date, currency, page, limit, isDeleted } = validationResult.data;
+  if(isDeleted !== undefined && isDeleted !== 'true' && isDeleted !== 'false') {
+    res.status(400).json({ 
+      message: 'Invalid request, isDeleted must be a boolean' 
+    });
+    return;
+  }
   const deleted = isDeleted === 'true' ? true : false;
-
   // Validate date
   if (date && !isValid(date)) {
     res.status(400).json({
@@ -40,6 +45,20 @@ export async function search(req: Request, res: Response) {
     });
     return;
   }
+  if(date && date < new Date("1990-01-01")) {
+    res.status(400).json({
+      success:false,
+      message:"Date cannot be before 1990-01-01"
+    });
+  }
+  if(date && date > new Date()) {
+    res.status(400).json({
+      success:false,
+      message:"Date cannot be in the future"
+    });
+    return;
+  }
+
   if(currency && !currencyConversionRates.get(currency.toUpperCase())) {
     res.status(400).json({
       success:false,
