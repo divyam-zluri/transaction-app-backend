@@ -25,7 +25,6 @@ export class TransactionService {
     const em = await getEntityManager();
 
     if (!currencyConversionRates.has(currency.toUpperCase())) {
-      console.log("Hello from invalid");
       throw new Error("Invalid currency code");
     }
 

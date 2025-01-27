@@ -16,5 +16,11 @@ export async function pageLimit(req: Request, res: Response, next: NextFunction)
     });
     return;
   }
+  if(limit > 1000){
+    res.status(400).json({
+      message: "Limit should be less than 1000",
+    });
+    return;
+  }
   next();
 }

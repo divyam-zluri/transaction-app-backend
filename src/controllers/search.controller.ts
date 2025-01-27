@@ -67,6 +67,18 @@ export async function search(req: Request, res: Response) {
     }
 
     // Pagination logic
+    if(page < 1 || limit < 1){
+      res.status(400).json({
+        message: "Invalid page or limit",
+      });
+      return;
+    }
+    if(limit > 1000){
+      res.status(400).json({
+        message: "Limit should be less than 1000",
+      });
+      return;
+    }
     const pageNumber = Math.max(1, page); // Ensure page is at least 1
     const limitNumber = Math.max(1, limit); // Ensure limit is at least 1
     const offset = (pageNumber - 1) * limitNumber;
