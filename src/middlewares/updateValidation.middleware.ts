@@ -35,6 +35,19 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
           });
           return;
         }
+        if(checkDate < new Date("1990-01-01")) {
+            res.status(400).json({
+              success:false,
+              message:"Date cannot be before 1990-01-01"
+            });
+        }
+        if(checkDate > new Date()) {
+            res.status(400).json({
+              success:false,
+              message:"Date cannot be in the future"
+            });
+            return;
+        }
     }
     if(originalAmount && originalAmount < 0){
         res.status(400).json({

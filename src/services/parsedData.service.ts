@@ -78,6 +78,15 @@ export class TransactionService {
           continue;
         }
 
+        if(parsedDate < new Date("1990-01-01")) {
+          warnings.push(`Date cannot be before 1990-01-01: ${data.Date}`);
+          continue;
+        }
+        if(parsedDate > new Date()) {
+          warnings.push(`Date cannot be in the future: ${data.Date}`);
+          continue;
+        }
+        
         const key = `${date.toISOString()}|${data.Description}`;
         if (seenEntries.has(key) || existingSet.has(key)) {
           warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);
