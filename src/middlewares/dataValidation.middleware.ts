@@ -70,7 +70,7 @@ export async function dataValidation(
     return;
   }
 
-  const temp = description.trim().replace(/\s+/g, ' ');
+  const temp = description.replace(/\s+/g, ' ').trim();
   const duplicate = await em.findOne(Transaction, { date, description : temp});
   if (duplicate) {
     res.status(400).json({
