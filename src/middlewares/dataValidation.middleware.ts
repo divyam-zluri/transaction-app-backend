@@ -62,7 +62,7 @@ export async function dataValidation(
     });
     return;
   }
-  if(originalAmount < 1){
+  if(originalAmount <= 0){
     res.status(400).json({
         success: false,
         message: 'Amount must be greater than 0'

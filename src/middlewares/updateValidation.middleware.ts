@@ -57,7 +57,7 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
         }
     }
     
-    if(originalAmount !== undefined && originalAmount < 1){
+    if(originalAmount !== undefined && originalAmount <= 0){
         res.status(400).json({
             success: false,
             message: 'Amount must be greater than 0'
