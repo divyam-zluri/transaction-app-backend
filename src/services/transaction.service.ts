@@ -34,7 +34,7 @@ export class TransactionService {
 
     const transaction = new Transaction();
     transaction.date = date;
-    transaction.description = description.replace(/\s+/g, ' ').trim();
+    transaction.description = description.trim().normalize('NFKD').replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim();
     transaction.originalAmount = originalAmount;
     transaction.currency = currency.toUpperCase();
     transaction.amountInINR =
@@ -52,7 +52,7 @@ export class TransactionService {
       throw new Error("Transaction not found");
     }
 
-    if (data.description !== undefined) transaction.description = data.description.replace(/\s+/g, ' ').trim();
+    if (data.description !== undefined) transaction.description = data.description.trim().normalize('NFKD').replace(/[^\w\s-]/g, '').replace(/\s+/g, ' ').trim();
     if (data.date !== undefined) transaction.date = data.date;
 
     if (data.currency !== undefined) {
