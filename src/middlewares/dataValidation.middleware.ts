@@ -70,7 +70,8 @@ export async function dataValidation(
     return;
   }
 
-  const duplicate = await em.findOne(Transaction, { date, description });
+  const temp = description.trim();
+  const duplicate = await em.findOne(Transaction, { date, description : temp});
   if (duplicate) {
     res.status(400).json({
       success: false,
