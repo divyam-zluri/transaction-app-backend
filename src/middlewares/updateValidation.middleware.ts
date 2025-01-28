@@ -65,7 +65,7 @@ export async function updateValidation(req: Request, res: Response, next: NextFu
         return;
     }
     if(date && description){
-        const temp = description.trim();
+        const temp = description.trim().replace(/\s+/g, ' ');
         const duplicate = await em.findOne(Transaction, {date, description : temp});
         if(duplicate && (duplicate.id !== Number(req.params.id))){
             res.status(400).json({

@@ -34,7 +34,7 @@ export class TransactionService {
       const date = formatDate(data.Date);
       return {
         date,
-        description: data.Description.trim(),
+        description: data.Description.trim().replace(/\s+/g, ' '),
       };
     }).filter(pair => pair.date !== null);
 
@@ -45,7 +45,7 @@ export class TransactionService {
     const existingSet = new Set(
       existingTransactions.map(
         (transaction) =>
-          `${transaction.date.toISOString()}|${transaction.description.trim()}`
+          `${transaction.date.toISOString()}|${transaction.description.trim().replace(/\s+/g, ' ')}`
       )
     );
 
@@ -87,7 +87,7 @@ export class TransactionService {
           continue;
         }
         
-        const key = `${date.toISOString()}|${data.Description.trim()}`;
+        const key = `${date.toISOString()}|${data.Description.trim().replace(/\s+/g, ' ')}`;
         if (seenEntries.has(key) || existingSet.has(key)) {
           warnings.push(`Duplicate transaction: ${JSON.stringify(data)}`);
           continue;
@@ -98,7 +98,7 @@ export class TransactionService {
         // Create a new transaction
         const transaction = new Transaction();
         transaction.date = date;
-        transaction.description = data.Description.trim();
+        transaction.description = data.Description.trim().replace(/\s+/g, ' ');
         transaction.originalAmount = data.Amount;
         transaction.currency = data.Currency.toUpperCase();
         transaction.amountInINR = data.Amount * conversionRate;
