@@ -11,10 +11,17 @@ export async function dataValidation(
   const em = await getEntityManager();
 
   const { date, description, originalAmount, currency } = req.body;
-  if (!date || !description || !originalAmount || !currency) {
+  const missingFields = [];
+  
+  if (!date) missingFields.push('date');
+  if (!description) missingFields.push('description');
+  if (!originalAmount) missingFields.push('originalAmount');
+  if (!currency) missingFields.push('currency');
+  
+  if (missingFields.length > 0) {
     res.status(400).json({
       success: false,
-      message: "Please provide all the required fields",
+      message: `Please provide the following fields: ${missingFields.join(', ')}`,
     });
     return;
   }
